@@ -125,3 +125,31 @@ func Get(
 	}
 	return generateItems(db, words, hooks...)
 }
+
+// Similar to `generateItems` but takes a course DB instead of a review DB.
+func GetItems(db *sql.DB, words []string) ([]Item, error) {
+	var items []Item
+	for _, word := range words {
+		sentence, err := sentences.PickSentence(db, word)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate flashcards: %v", err)
+		}
+
+		translation, err := translator.Translate(db, sentence)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate flashcards: %v", err)
+		}
+
+		item := Item{
+			Translation: translation,
+			Sentence: Sentence{
+				ID:        sentence.ID,
+				Parts:     getParts(sentence.Tokens, word),
+				TatoebaID: sentence.TatoebaID,
+			},
+		}
+
+		items = append(items, item)
+	}
+	return items, nil
+}

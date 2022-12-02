@@ -148,6 +148,55 @@ func handleFlashcards(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleTest(w http.ResponseWriter, r *http.Request) {
+	l1 := chi.URLParam(r, "l1")
+	l2 := chi.URLParam(r, "l2")
+	if !courseExists(l1, l2) {
+		http.NotFound(w, r)
+		return
+	}
+
+	if r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "expected json body in POST request", http.StatusBadRequest)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Could not read request.", http.StatusInternalServerError)
+		return
+	}
+
+	var data map[string][]string
+	if err := json.Unmarshal(body, &data); err != nil {
+		http.Error(w, "could not parse json", http.StatusBadRequest)
+		return
+	}
+
+	words, ok := data["words"]
+	if !ok {
+		http.Error(w, "missing list of words", http.StatusBadRequest)
+		return
+	}
+
+	db, err := database.Open(basedir.Course(l1, l2))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer db.Close()
+
+	items, err := flashcards.GetItems(db, words)
+	if err != nil {
+		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
+		return
+	}
+
+	sendJSON(w, map[string][]flashcards.Item{
+		"items": items,
+	})
+}
+
 func handleHome(w http.ResponseWriter, r *http.Request) {
 	db := auth.GetDB(r)
 	s, err := sessions.StartOrResumeSession(db, w, r)
@@ -219,5 +268,6 @@ func Router(config Config, db *sql.DB) (chi.Router, error) {
 
 	r.HandleFunc("/api/languages", serveLanguagesJSON())
 	r.HandleFunc("/api/courses", serveCoursesJSON())
+	r.HandleFunc("/api/test/{l1}/{l2}", handleTest)
 	return r, nil
 }
