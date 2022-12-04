@@ -31,6 +31,7 @@ interface Schema extends DBSchema {
     "pending-reviews": {
         key: string;
         value: ReviewsValue;
+        indexes: { reviewed: Date };
     };
 
     "submitted-reviews": {
@@ -59,9 +60,10 @@ type Database = IDBPDatabase<Schema>;
 // Upgrades indexed db to the new version.
 function upgrade(db: Database, oldVersion: number) {
     if (oldVersion < 1) {
-        db.createObjectStore("pending-reviews", {
+        const pendingReviews = db.createObjectStore("pending-reviews", {
             keyPath: "word",
         });
+        pendingReviews.createIndex("reviewed", "reviewed", { unique: false });
 
         const submittedReviews = db.createObjectStore("submitted-reviews", {
             keyPath: "word",
@@ -315,4 +317,72 @@ export async function saveReview(db: Database, word: string, correct: boolean, n
 
     autoTune(intervalStats, previous?.interval || 0);
     return tx.done;
+}
+
+// Gets all pending reviews from the database.
+async function getAllPendingReviews(
+    store: Store<"pending-reviews", ReadOnly>,
+): Promise<ReviewsValue[]> {
+    const reviews = [];
+    const index = store.index("reviewed");
+
+    let cursor = await index.openCursor();
+    while (cursor) {
+        reviews.push(cursor.value);
+        cursor = await cursor.continue();
+    }
+    return reviews;
+}
+
+// Gets all difficulty stats as string.
+async function getDifficultyStatsJSON(
+    store: Store<"difficulty-stats", ReadOnly>,
+): Promise<string> {
+    const stats = [];
+    let cursor = await store.openCursor();
+    while (cursor) {
+        stats.push(cursor.value);
+        cursor = await cursor.continue();
+    }
+    return JSON.stringify(stats);
+}
+
+// Gets all interval stats as string.
+async function getIntervalStatsJSON(
+    store: Store<"interval-stats", ReadOnly>,
+): Promise<string> {
+    const stats = [];
+    let cursor = await store.openCursor();
+    while (cursor) {
+        stats.push(cursor.value);
+        cursor = await cursor.continue();
+    }
+    return JSON.stringify(stats);
+}
+
+// Pushes new data to the server.
+async function push(
+    pendingReviews: Store<"pending-reviews", ReadOnly>,
+    difficultyStats: Store<"difficulty-stats", ReadOnly>,
+    intervalStats: Store<"interval-stats", ReadOnly>,
+) {
+    const data = {
+        "reviews": await getAllPendingReviews(pendingReviews),
+        "difficultyStats": await getDifficultyStatsJSON(difficultyStats),
+        "intervalStats": await getIntervalStatsJSON(intervalStats),
+    };
+    // TODO push data
+    console.log(data);
+}
+
+// Syncs local DB with remote DB.
+export async function sync(db: Database) {
+    // TODO pull word list
+
+    // Push unpushed changes.
+    const tx = db.transaction(db.objectStoreNames, "readonly");
+    const pendingReviews = tx.objectStore("pending-reviews") as Store<"pending-reviews", ReadOnly>;
+    const difficultyStats = tx.objectStore("difficulty-stats") as Store<"difficulty-stats", ReadOnly>;
+    const intervalStats = tx.objectStore("interval-stats") as Store<"interval-stats", ReadOnly>;
+    push(pendingReviews, difficultyStats, intervalStats);
 }
