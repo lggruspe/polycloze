@@ -46,7 +46,7 @@ interface Schema extends DBSchema {
     "acknowledged-reviews": {
         key: string;
         value: ReviewsValue;
-        indexes: { due: Date };
+        indexes: { due: Date, "sequence-number": number };
     };
 
     "difficulty-stats": {
@@ -82,6 +82,7 @@ function upgrade(db: Database, oldVersion: number) {
             keyPath: "word",
         });
         acknowledgedReviews.createIndex("due", "due", { unique: false });
+        acknowledgedReviews.createIndex("sequence-number", "sequenceNumber", { unique: true });
 
         db.createObjectStore("difficulty-stats", {
             keyPath: "difficulty",
@@ -392,13 +393,29 @@ async function getIntervalStatsJSON(
     return JSON.stringify(stats);
 }
 
+// Returns the latest acknowledged review, or `undefined`.
+async function latestAcknowledgedReview(
+    store: Store<"acknowledged-reviews", ReadOnly>
+): Promise<ReviewsValue | undefined> {
+    const index = store.index("sequence-number");
+
+    const cursor = await index.openCursor(undefined, "prevunique");
+    if (cursor) {
+        return cursor.value;
+    }
+    return undefined;
+}
+
 // Pushes new data to the server.
 async function push(
+    acknowledgedReviews: Store<"acknowledged-reviews", ReadOnly>,
     unacknowledgedReviews: Store<"unacknowledged-reviews", ReadOnly>,
     difficultyStats: Store<"difficulty-stats", ReadOnly>,
     intervalStats: Store<"interval-stats", ReadOnly>,
 ) {
+    const latest = await latestAcknowledgedReview(acknowledgedReviews);
     const data = {
+        "latest": latest?.sequenceNumber || 0,
         "reviews": await getAllUnacknowledgedReviews(unacknowledgedReviews),
         "difficultyStats": await getDifficultyStatsJSON(difficultyStats),
         "intervalStats": await getIntervalStatsJSON(intervalStats),
@@ -413,8 +430,14 @@ export async function sync(db: Database) {
 
     // Push unpushed changes.
     const tx = db.transaction(db.objectStoreNames, "readonly");
-    const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews") as Store<"unacknowledged-reviews", ReadOnly>;
-    const difficultyStats = tx.objectStore("difficulty-stats") as Store<"difficulty-stats", ReadOnly>;
-    const intervalStats = tx.objectStore("interval-stats") as Store<"interval-stats", ReadOnly>;
-    push(unacknowledgedReviews, difficultyStats, intervalStats);
+    const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
+    const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews");
+    const difficultyStats = tx.objectStore("difficulty-stats");
+    const intervalStats = tx.objectStore("interval-stats");
+    push(
+        acknowledgedReviews as Store<"acknowledged-reviews", ReadOnly>,
+        unacknowledgedReviews as Store<"unacknowledged-reviews", ReadOnly>,
+        difficultyStats as Store<"difficulty-stats", ReadOnly>,
+        intervalStats as Store<"interval-stats", ReadOnly>,
+    );
 }
