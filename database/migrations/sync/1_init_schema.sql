@@ -11,7 +11,7 @@ CREATE TABLE review (
 	learned INTEGER NOT NULL DEFAULT (unixepoch('now')),
 	reviewed INTEGER NOT NULL DEFAULT (unixepoch('now')),
 	interval INTEGER NOT NULL,
-	sequence_number INTEGER NOT NULL,
+	sequence_number INTEGER UNIQUE NOT NULL,
 	due INTEGER NOT NULL GENERATED ALWAYS AS (reviewed + 3600*interval) VIRTUAL,
 	correct BOOLEAN GENERATED ALWAYS AS (interval > 0) VIRTUAL
 );
