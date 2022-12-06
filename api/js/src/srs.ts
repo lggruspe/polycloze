@@ -28,13 +28,13 @@ type IntervalStatsValue = {
 };
 
 interface Schema extends DBSchema {
-    "pending-reviews": {
+    "unacknowledged-reviews": {
         key: string;
         value: ReviewsValue;
         indexes: { reviewed: Date };
     };
 
-    "submitted-reviews": {
+    "acknowledged-reviews": {
         key: string;
         value: ReviewsValue;
         indexes: { due: Date };
@@ -60,15 +60,15 @@ type Database = IDBPDatabase<Schema>;
 // Upgrades indexed db to the new version.
 function upgrade(db: Database, oldVersion: number) {
     if (oldVersion < 1) {
-        const pendingReviews = db.createObjectStore("pending-reviews", {
+        const unacknowledgedReviews = db.createObjectStore("unacknowledged-reviews", {
             keyPath: "word",
         });
-        pendingReviews.createIndex("reviewed", "reviewed", { unique: false });
+        unacknowledgedReviews.createIndex("reviewed", "reviewed", { unique: false });
 
-        const submittedReviews = db.createObjectStore("submitted-reviews", {
+        const acknowledgedReviews = db.createObjectStore("acknowledged-reviews", {
             keyPath: "word",
         });
-        submittedReviews.createIndex("due", "due", { unique: false });
+        acknowledgedReviews.createIndex("due", "due", { unique: false });
 
         db.createObjectStore("difficulty-stats", {
             keyPath: "difficulty",
@@ -103,8 +103,8 @@ export function openSRS() {
 export async function schedule(db: Database, limit = 10): Promise<string[]> {
     const range = IDBKeyRange.upperBound(new Date());
 
-    const tx = db.transaction("submitted-reviews", "readonly");
-    const store = tx.objectStore("submitted-reviews");
+    const tx = db.transaction("acknowledged-reviews", "readonly");
+    const store = tx.objectStore("acknowledged-reviews");
     const index = store.index("due");
 
     const reviews = [];
@@ -117,7 +117,7 @@ export async function schedule(db: Database, limit = 10): Promise<string[]> {
     return reviews;
 }
 
-type StoreName = "pending-reviews" | "submitted-reviews" | "difficulty-stats" | "interval-stats";
+type StoreName = "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
 
 type Store<T extends StoreName, U extends TransactionMode> = IDBPObjectStore<Schema, ("interval-stats")[], T, U>;
 
@@ -300,10 +300,10 @@ async function autoTune(
 
 export async function saveReview(db: Database, word: string, correct: boolean, now: Date = new Date()) {
     const tx = db.transaction(db.objectStoreNames, "readwrite");
-    const submittedReviews = tx.objectStore("submitted-reviews");
+    const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
 
-    // Doesn't include reviews from `pending-reviews` store for simplicity.
-    const previous = await submittedReviews.get(word);
+    // Doesn't include reviews from `unacknowledged-reviews` store for simplicity.
+    const previous = await acknowledgedReviews.get(word);
     if (previous == null || previous.due <= now) {
         // Update interval stats if word is new or if the student didn't cram.
         const store = tx.objectStore("interval-stats") as Store<"interval-stats", ReadWrite>;
@@ -312,16 +312,16 @@ export async function saveReview(db: Database, word: string, correct: boolean, n
 
     const intervalStats = tx.objectStore("interval-stats") as Store<"interval-stats", ReadWrite>;
     const review = await nextReview(intervalStats, word, previous, correct);
-    const pendingReviews = tx.objectStore("pending-reviews");
-    pendingReviews.put(review);
+    const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews");
+    unacknowledgedReviews.put(review);
 
     autoTune(intervalStats, previous?.interval || 0);
     return tx.done;
 }
 
-// Gets all pending reviews from the database.
-async function getAllPendingReviews(
-    store: Store<"pending-reviews", ReadOnly>,
+// Gets all unacknowledged reviews from the database.
+async function getAllUnacknowledgedReviews(
+    store: Store<"unacknowledged-reviews", ReadOnly>,
 ): Promise<ReviewsValue[]> {
     const reviews = [];
     const index = store.index("reviewed");
@@ -362,12 +362,12 @@ async function getIntervalStatsJSON(
 
 // Pushes new data to the server.
 async function push(
-    pendingReviews: Store<"pending-reviews", ReadOnly>,
+    unacknowledgedReviews: Store<"unacknowledged-reviews", ReadOnly>,
     difficultyStats: Store<"difficulty-stats", ReadOnly>,
     intervalStats: Store<"interval-stats", ReadOnly>,
 ) {
     const data = {
-        "reviews": await getAllPendingReviews(pendingReviews),
+        "reviews": await getAllUnacknowledgedReviews(unacknowledgedReviews),
         "difficultyStats": await getDifficultyStatsJSON(difficultyStats),
         "intervalStats": await getIntervalStatsJSON(intervalStats),
     };
@@ -381,8 +381,8 @@ export async function sync(db: Database) {
 
     // Push unpushed changes.
     const tx = db.transaction(db.objectStoreNames, "readonly");
-    const pendingReviews = tx.objectStore("pending-reviews") as Store<"pending-reviews", ReadOnly>;
+    const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews") as Store<"unacknowledged-reviews", ReadOnly>;
     const difficultyStats = tx.objectStore("difficulty-stats") as Store<"difficulty-stats", ReadOnly>;
     const intervalStats = tx.objectStore("interval-stats") as Store<"interval-stats", ReadOnly>;
-    push(pendingReviews, difficultyStats, intervalStats);
+    push(unacknowledgedReviews, difficultyStats, intervalStats);
 }
