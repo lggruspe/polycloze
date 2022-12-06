@@ -6,6 +6,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -45,7 +46,6 @@ func moreRecent(db *sql.DB, sequenceNumber int) ([]ReviewSchema, error) {
 		WHERE sequence_number > ?
 		ORDER BY sequence_number ASC
 	`
-
 	rows, err := db.Query(query, sequenceNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get more recent reviews: %v", err)
@@ -54,16 +54,20 @@ func moreRecent(db *sql.DB, sequenceNumber int) ([]ReviewSchema, error) {
 
 	for rows.Next() {
 		var review ReviewSchema
+		var learned, reviewed int64
 		err := rows.Scan(
 			&review.Word,
-			&review.Learned, // TODO What type?
-			&review.Reviewed,
+			&learned,
+			&reviewed,
 			&review.Interval,
 			&review.SequenceNumber,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get more recent reviews: %v", err)
 		}
+
+		review.Learned = time.Unix(learned, 0)
+		review.Reviewed = time.Unix(reviewed, 0)
 		reviews = append(reviews, review)
 	}
 	return reviews, nil
@@ -74,11 +78,20 @@ func getAllStats(db *sql.DB) (map[string]string, error) {
 	query := `SELECT value FROM stat WHERE name = ?`
 
 	var difficulty, interval string
-	if err := db.QueryRow(query, "difficulty").Scan(&difficulty); err != nil {
-		return nil, fmt.Errorf("failed to get stats: %v", err)
+	err := db.QueryRow(query, "difficulty").Scan(&difficulty)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("failed to get stats: %v", err)
+		}
+		difficulty = ""
 	}
-	if err := db.QueryRow(query, "interval").Scan(&difficulty); err != nil {
-		return nil, fmt.Errorf("failed to get stats: %v", err)
+
+	err = db.QueryRow(query, "interval").Scan(&difficulty)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("failed to get stats: %v", err)
+		}
+		interval = ""
 	}
 
 	stats["difficultyStats"] = difficulty
