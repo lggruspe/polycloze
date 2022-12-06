@@ -472,46 +472,48 @@ export async function sync(db: Database) {
     );
 
     const reviews = resp.reviews || [];
-    if (reviews.length > 0) {
-        // Resolve conflicts.
-        const difficultyStatsJSON = resp?.difficultyStats || "";
-        const intervalStatsJSON = resp?.intervalStats || "";
-        console.assert(difficultyStatsJSON.length > 0);
-        console.assert(intervalStatsJSON.length > 0);
 
-        // Acknowledge new reviews from the server.
-        const hour = 1000 * 60 * 60;
-        let latest = 0;
-        for (const review of reviews) {
-            const reviewed = new Date(review.reviewed);
-            const { interval, sequenceNumber } = review;
-            acknowledgedReviews.put({
-                word: review.word,
-                learned: new Date(review.learned),
-                reviewed,
-                interval,
-                due: new Date(reviewed.getTime() + interval * hour),
-                sequenceNumber,
-            });
-
-            if (sequenceNumber > latest) {
-                latest = sequenceNumber;
-            }
-        }
-
-        const sequenceNumbers = (
-            tx.objectStore("sequence-numbers") as Store<"sequence-numbers", ReadWrite>
-        );
-        await Promise.all([
-            setSequenceNumber(sequenceNumbers, latest),
-            unacknowledgedReviews.clear(),
-            replaceDifficultyStats(difficultyStats, difficultyStatsJSON),
-            replaceIntervalStats(intervalStats, intervalStatsJSON),
-        ]);
-    } else {
+    if (reviews.length === 0) {
         // ACK un-ACK'ed reviews if there are no conflicts.
-        // TODO
+        acknowledgeReviews(acknowledgedReviews, unacknowledgedReviews);
+        return;
     }
+
+    // Resolve conflicts.
+    const difficultyStatsJSON = resp?.difficultyStats || "";
+    const intervalStatsJSON = resp?.intervalStats || "";
+    console.assert(difficultyStatsJSON.length > 0);
+    console.assert(intervalStatsJSON.length > 0);
+
+    // Acknowledge new reviews from the server.
+    const hour = 1000 * 60 * 60;
+    let latest = 0;
+    for (const review of reviews) {
+        const reviewed = new Date(review.reviewed);
+        const { interval, sequenceNumber } = review;
+        acknowledgedReviews.put({
+            word: review.word,
+            learned: new Date(review.learned),
+            reviewed,
+            interval,
+            due: new Date(reviewed.getTime() + interval * hour),
+            sequenceNumber,
+        });
+
+        if (sequenceNumber > latest) {
+            latest = sequenceNumber;
+        }
+    }
+
+    const sequenceNumbers = (
+        tx.objectStore("sequence-numbers") as Store<"sequence-numbers", ReadWrite>
+    );
+    await Promise.all([
+        setSequenceNumber(sequenceNumbers, latest),
+        unacknowledgedReviews.clear(),
+        replaceDifficultyStats(difficultyStats, difficultyStatsJSON),
+        replaceIntervalStats(intervalStats, intervalStatsJSON),
+    ]);
 }
 
 // Replaces difficulty stats with stats received from server.
@@ -536,4 +538,17 @@ async function replaceIntervalStats(
     for (const stat of stats) {
         store.put(stat);
     }
+}
+
+// Moves all reviews from "unacknowledged-reviews" store to "acknowledged-reviews".
+async function acknowledgeReviews(
+    acknowledgedReviews: Store<"acknowledged-reviews", ReadWrite>,
+    unacknowledgedReviews: Store<"unacknowledged-reviews", ReadWrite>,
+) {
+    let cursor = await unacknowledgedReviews.openCursor();
+    while (cursor) {
+        acknowledgedReviews.put(cursor.value);
+        cursor = await cursor.continue();
+    }
+    await unacknowledgedReviews.clear();
 }
