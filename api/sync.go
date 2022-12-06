@@ -180,14 +180,28 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save uploaded reviews and stats if there are no conflicts.
-	if err := saveReviews(db, data.Reviews); err != nil {
+	// Wrap all updates in a single transaction.
+	tx, err := db.Begin()
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
+		return
+	}
+
+	if err := saveReviews(tx, data.Reviews); err != nil {
 		log.Println(err)
 		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
 		return
 	}
 
 	// Save stats.
-	if err := saveStats(db, data.DifficultyStats, data.IntervalStats); err != nil {
+	if err := saveStats(tx, data.DifficultyStats, data.IntervalStats); err != nil {
+		log.Println(err)
+		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
 		log.Println(err)
 		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
 		return
@@ -198,13 +212,13 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 }
 
 // Saves uploaded reviews.
-func saveReviews(db *sql.DB, reviews []ReviewSchema) error {
+func saveReviews(tx *sql.Tx, reviews []ReviewSchema) error {
 	query := `
 		INSERT INTO review (word, learned, reviewed, interval, sequence_number)
 		VALUES (?, ?, ?, ?, ?)
 	`
 	for _, review := range reviews {
-		if _, err := db.Exec(
+		if _, err := tx.Exec(
 			query,
 			review.Word,
 			review.Learned.Unix(),
@@ -219,16 +233,16 @@ func saveReviews(db *sql.DB, reviews []ReviewSchema) error {
 }
 
 // Saves uploaded stats.
-func saveStats(db *sql.DB, difficultyStats, intervalStats string) error {
+func saveStats(tx *sql.Tx, difficultyStats, intervalStats string) error {
 	query := `
 		INSERT INTO stat (name, value) VALUES (?, ?)
 		ON CONFLICT (name) DO UPDATE SET
 			value = excluded.value
 	`
-	if _, err := db.Exec(query, "difficulty", difficultyStats); err != nil {
+	if _, err := tx.Exec(query, "difficulty", difficultyStats); err != nil {
 		return fmt.Errorf("failed to update difficulty stats: %v", err)
 	}
-	if _, err := db.Exec(query, "interval", intervalStats); err != nil {
+	if _, err := tx.Exec(query, "interval", intervalStats); err != nil {
 		return fmt.Errorf("failed to update interval stats: %v", err)
 	}
 	return nil
