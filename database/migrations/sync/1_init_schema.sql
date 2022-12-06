@@ -7,7 +7,7 @@
 -- +goose StatementBegin
 
 CREATE TABLE review (
-	item TEXT PRIMARY KEY,
+	word TEXT PRIMARY KEY,
 	learned INTEGER NOT NULL DEFAULT (unixepoch('now')),
 	reviewed INTEGER NOT NULL DEFAULT (unixepoch('now')),
 	interval INTEGER NOT NULL,
