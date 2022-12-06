@@ -1,5 +1,7 @@
 // Word + review scheduler.
 
+import { syncReviews } from "./api";
+import { SyncResponseSchema } from "./schema";
 import { isTooEasy, isTooHard } from "./wilson";
 import {
     openDB,
@@ -13,6 +15,7 @@ type ReadOnly = "readonly" | "readwrite";
 type ReadWrite = "readwrite";
 type TransactionMode = ReadOnly | ReadWrite;
 
+// Used in indexedDB schema only (JSON API schema uses a different schema).
 type ReviewsValue = {
     word: string;       // key
     learned: Date;      // default now
@@ -20,6 +23,12 @@ type ReviewsValue = {
     interval: number;   // default 0 or 24 hours
     due: Date;          // reviewed + interval (in seconds)
     sequenceNumber: number;
+};
+
+type DifficultyStatsValue = {
+    difficulty: number; // key
+    correct: number;    // default 0
+    incorrect: number;  // default 0
 };
 
 type IntervalStatsValue = {
@@ -51,11 +60,7 @@ interface Schema extends DBSchema {
 
     "difficulty-stats": {
         key: number;
-        value: {
-            difficulty: number; // key
-            correct: number;    // default 0
-            incorrect: number;  // default 0
-        };
+        value: DifficultyStatsValue;
     };
 
     "interval-stats": {
@@ -322,12 +327,27 @@ async function autoTune(
 }
 
 // Increments current sequence number and returns the result.
-export async function getSequenceNumber(store: Store<"sequence-numbers", ReadWrite>): Promise<number> {
+async function getSequenceNumber(store: Store<"sequence-numbers", ReadWrite>): Promise<number> {
     const value = await store.get("sequence-number");
     let seqnum = value?.value || 0;
     seqnum++;
     store.put({ name: "sequence-number", value: seqnum });
     return seqnum;
+}
+
+// Sets the current sequence number to `sequenceNumber` if it's larger.
+// Returns the new current sequence number.
+async function setSequenceNumber(
+    store: Store<"sequence-numbers", ReadWrite>,
+    sequenceNumber: number,
+): Promise<number> {
+    const value = await store.get("sequence-number");
+    const current = value?.value || 0;
+    if (sequenceNumber <= current) {
+        return current;
+    }
+    store.put({ name: "sequence-number", value: sequenceNumber });
+    return sequenceNumber;
 }
 
 export async function saveReview(db: Database, word: string, correct: boolean, now: Date = new Date()) {
@@ -407,12 +427,13 @@ async function latestAcknowledgedReview(
 }
 
 // Pushes new data to the server.
+// Returns API response.
 async function push(
     acknowledgedReviews: Store<"acknowledged-reviews", ReadOnly>,
     unacknowledgedReviews: Store<"unacknowledged-reviews", ReadOnly>,
     difficultyStats: Store<"difficulty-stats", ReadOnly>,
     intervalStats: Store<"interval-stats", ReadOnly>,
-) {
+): Promise<SyncResponseSchema> {
     const latest = await latestAcknowledgedReview(acknowledgedReviews);
     const data = {
         "latest": latest?.sequenceNumber || 0,
@@ -420,8 +441,7 @@ async function push(
         "difficultyStats": await getDifficultyStatsJSON(difficultyStats),
         "intervalStats": await getIntervalStatsJSON(intervalStats),
     };
-    // TODO push data
-    console.log(data);
+    return syncReviews(data);
 }
 
 // Syncs local DB with remote DB.
@@ -429,15 +449,91 @@ export async function sync(db: Database) {
     // TODO pull word list
 
     // Push unpushed changes.
-    const tx = db.transaction(db.objectStoreNames, "readonly");
-    const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
-    const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews");
-    const difficultyStats = tx.objectStore("difficulty-stats");
-    const intervalStats = tx.objectStore("interval-stats");
-    push(
-        acknowledgedReviews as Store<"acknowledged-reviews", ReadOnly>,
-        unacknowledgedReviews as Store<"unacknowledged-reviews", ReadOnly>,
-        difficultyStats as Store<"difficulty-stats", ReadOnly>,
-        intervalStats as Store<"interval-stats", ReadOnly>,
+    const tx = db.transaction(db.objectStoreNames, "readwrite");
+    const acknowledgedReviews = (
+        tx.objectStore("acknowledged-reviews") as Store<"acknowledged-reviews", ReadWrite>
     );
+    const unacknowledgedReviews = (
+        tx.objectStore("unacknowledged-reviews") as Store<"unacknowledged-reviews", ReadWrite>
+    );
+    const difficultyStats = (
+        tx.objectStore("difficulty-stats") as Store<"difficulty-stats", ReadWrite>
+    );
+    const intervalStats = (
+        tx.objectStore("interval-stats") as Store<"interval-stats", ReadWrite>
+    );
+
+    // Check response.
+    const resp = await push(
+        acknowledgedReviews,
+        unacknowledgedReviews,
+        difficultyStats,
+        intervalStats,
+    );
+
+    const reviews = resp.reviews || [];
+    if (reviews.length > 0) {
+        // Resolve conflicts.
+        const difficultyStatsJSON = resp?.difficultyStats || "";
+        const intervalStatsJSON = resp?.intervalStats || "";
+        console.assert(difficultyStatsJSON.length > 0);
+        console.assert(intervalStatsJSON.length > 0);
+
+        // Acknowledge new reviews from the server.
+        const hour = 1000 * 60 * 60;
+        let latest = 0;
+        for (const review of reviews) {
+            const reviewed = new Date(review.reviewed);
+            const { interval, sequenceNumber } = review;
+            acknowledgedReviews.put({
+                word: review.word,
+                learned: new Date(review.learned),
+                reviewed,
+                interval,
+                due: new Date(reviewed.getTime() + interval * hour),
+                sequenceNumber,
+            });
+
+            if (sequenceNumber > latest) {
+                latest = sequenceNumber;
+            }
+        }
+
+        const sequenceNumbers = (
+            tx.objectStore("sequence-numbers") as Store<"sequence-numbers", ReadWrite>
+        );
+        await Promise.all([
+            setSequenceNumber(sequenceNumbers, latest),
+            unacknowledgedReviews.clear(),
+            replaceDifficultyStats(difficultyStats, difficultyStatsJSON),
+            replaceIntervalStats(intervalStats, intervalStatsJSON),
+        ]);
+    } else {
+        // ACK un-ACK'ed reviews if there are no conflicts.
+        // TODO
+    }
+}
+
+// Replaces difficulty stats with stats received from server.
+async function replaceDifficultyStats(
+    store: Store<"difficulty-stats", ReadWrite>,
+    json: string,
+) {
+    await store.clear();
+    const stats = JSON.parse(json) as DifficultyStatsValue[];
+    for (const stat of stats) {
+        store.put(stat);
+    }
+}
+
+// Replaces interval stats with stats received from server.
+async function replaceIntervalStats(
+    store: Store<"interval-stats", ReadWrite>,
+    json: string,
+) {
+    await store.clear();
+    const stats = JSON.parse(json) as IntervalStatsValue[];
+    for (const stat of stats) {
+        store.put(stat);
+    }
 }

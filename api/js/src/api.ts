@@ -15,6 +15,8 @@ import {
     RandomSentence,
     RandomSentencesSchema,
     ReviewSchema,
+    SyncRequestSchema,
+    SyncResponseSchema,
     Word,
     VocabularySchema,
     VocabularySizeSchema,
@@ -203,6 +205,30 @@ export async function fetchSentences(options: FetchSentencesOptions = {}): Promi
         mode: "cors" as RequestMode,
     });
     return json.sentences;
+}
+
+type SyncReviewsOptions = {
+    l1?: string;
+    l2?: string;
+};
+
+function defaultSyncReviewsOptions(): SyncReviewsOptions {
+    return {
+        l1: getL1().code,
+        l2: getL2().code,
+    };
+}
+
+export function syncReviews(
+    data: SyncRequestSchema,
+    options: SyncReviewsOptions = {},
+) {
+    const { l1, l2 } = {...defaultSyncReviewsOptions(), ...options};
+    if (l1 == null || l2 == null) {
+        throw new Error("l1 and l2 required");
+    }
+    const url = resolve(`/api/sync/${l1}/${l2}`);
+    return submitJson<SyncResponseSchema>(url, data);
 }
 
 type Params = {
