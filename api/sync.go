@@ -40,7 +40,7 @@ func moreRecent(db *sql.DB, sequenceNumber int) ([]ReviewSchema, error) {
 	var reviews []ReviewSchema
 
 	query := `
-		SELECT item, learned, reviewed, interval, sequence_number
+		SELECT word, learned, reviewed, interval, sequence_number
 		FROM review
 		WHERE sequence_number > ?
 		ORDER BY sequence_number ASC
@@ -144,6 +144,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	// Get most recent reviews
 	reviews, err := moreRecent(db, data.Latest)
 	if err != nil {
+		log.Println(err)
 		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
 		return
 	}
@@ -153,6 +154,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		// unacknowledged reviews with the newer ones.
 		stats, err := getAllStats(db)
 		if err != nil {
+			log.Println(err)
 			http.Error(w, "Something went wrong.", http.StatusInternalServerError)
 			return
 		}
@@ -166,6 +168,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 
 	// Save uploaded reviews and stats if there are no conflicts.
 	if err := saveReviews(db, data.Reviews); err != nil {
+		log.Println(err)
 		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
 		return
 	}
