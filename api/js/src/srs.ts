@@ -19,6 +19,7 @@ type ReviewsValue = {
     reviewed: Date;     // default now
     interval: number;   // default 0 or 24 hours
     due: Date;          // reviewed + interval (in seconds)
+    sequenceNumber: number;
 };
 
 type IntervalStatsValue = {
@@ -28,6 +29,14 @@ type IntervalStatsValue = {
 };
 
 interface Schema extends DBSchema {
+    "sequence-numbers": {
+        key: "sequence-number";
+        value: {
+            name: "sequence-number";
+            value: number;
+        };
+    };
+
     "unacknowledged-reviews": {
         key: string;
         value: ReviewsValue;
@@ -60,6 +69,10 @@ type Database = IDBPDatabase<Schema>;
 // Upgrades indexed db to the new version.
 function upgrade(db: Database, oldVersion: number) {
     if (oldVersion < 1) {
+        db.createObjectStore("sequence-numbers", {
+            keyPath: "name",
+        });
+
         const unacknowledgedReviews = db.createObjectStore("unacknowledged-reviews", {
             keyPath: "word",
         });
@@ -117,7 +130,7 @@ export async function schedule(db: Database, limit = 10): Promise<string[]> {
     return reviews;
 }
 
-type StoreName = "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
+type StoreName = "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
 
 type Store<T extends StoreName, U extends TransactionMode> = IDBPObjectStore<Schema, ("interval-stats")[], T, U>;
 
@@ -159,13 +172,18 @@ async function nextInterval(
 }
 
 async function nextReview(
-    store: Store<"interval-stats", ReadOnly>,
-    word: string, previous: ReviewsValue | undefined,
+    intervalStats: Store<"interval-stats", ReadOnly>,
+    sequenceNumbers: Store<"sequence-numbers", ReadWrite>,
+    word: string,
+    previous: ReviewsValue | undefined,
     correct: boolean,
 ): Promise<ReviewsValue> {
     const hour = 1000 * 60 * 60;
     const now = new Date();
 
+    // sequence numbers should be generated in the last possible moment to
+    // avoid race conditions (e.g. when you generate a sequence number before
+    // an await call).
     if (previous == null) {
         const interval = correct ? 24 : 0;
         return {
@@ -174,6 +192,7 @@ async function nextReview(
             reviewed: now,
             interval,
             due: new Date(now.getTime() + interval * hour),
+            sequenceNumber: await getSequenceNumber(sequenceNumbers),
         };
     }
 
@@ -184,6 +203,7 @@ async function nextReview(
             reviewed: now,
             interval: 0,
             due: now,
+            sequenceNumber: await getSequenceNumber(sequenceNumbers),
         };
     }
 
@@ -195,17 +215,19 @@ async function nextReview(
             reviewed: now,
             interval: previous.interval,
             due: new Date(now.getTime() + previous.interval * hour),
+            sequenceNumber: await getSequenceNumber(sequenceNumbers),
         };
     }
 
     const delta = now.getTime() - previous.reviewed.getTime();
-    const interval = await nextInterval(store, delta / hour, true) as IntervalStatsValue;
+    const interval = await nextInterval(intervalStats, delta / hour, true) as IntervalStatsValue;
     return {
         word,
         learned: previous.learned,
         reviewed: now,
         interval: interval.interval,
         due: new Date(now.getTime() + interval.interval * hour),
+        sequenceNumber: await getSequenceNumber(sequenceNumbers),
     };
 }
 
@@ -298,6 +320,15 @@ async function autoTune(
     }
 }
 
+// Increments current sequence number and returns the result.
+export async function getSequenceNumber(store: Store<"sequence-numbers", ReadWrite>): Promise<number> {
+    const value = await store.get("sequence-number");
+    let seqnum = value?.value || 0;
+    seqnum++;
+    store.put({ name: "sequence-number", value: seqnum });
+    return seqnum;
+}
+
 export async function saveReview(db: Database, word: string, correct: boolean, now: Date = new Date()) {
     const tx = db.transaction(db.objectStoreNames, "readwrite");
     const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
@@ -311,7 +342,8 @@ export async function saveReview(db: Database, word: string, correct: boolean, n
     }
 
     const intervalStats = tx.objectStore("interval-stats") as Store<"interval-stats", ReadWrite>;
-    const review = await nextReview(intervalStats, word, previous, correct);
+    const sequenceNumbers = tx.objectStore("sequence-numbers") as Store<"sequence-numbers", ReadWrite>;
+    const review = await nextReview(intervalStats, sequenceNumbers, word, previous, correct);
     const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews");
     unacknowledgedReviews.put(review);
 
