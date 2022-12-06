@@ -164,6 +164,33 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO save uploaded reviews and stats if there are no conflicts.
+	// Save uploaded reviews and stats if there are no conflicts.
+	if err := saveReviews(db, data.Reviews); err != nil {
+		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
+		return
+	}
+
+	// Empty response means ACK'ed without conflicts.
 	sendJSON(w, map[string]any{})
+}
+
+// Saves uploaded reviews.
+func saveReviews(db *sql.DB, reviews []ReviewSchema) error {
+	query := `
+		INSERT INTO review (word, learned, reviewed, interval, sequence_number)
+		VALUES (?, ?, ?, ?, ?)
+	`
+	for _, review := range reviews {
+		if _, err := db.Exec(
+			query,
+			review.Word,
+			review.Learned.Unix(),
+			review.Reviewed.Unix(),
+			review.Interval,
+			review.SequenceNumber,
+		); err != nil {
+			return fmt.Errorf("failed to save uploaded reviews: %v", err)
+		}
+	}
+	return nil
 }
