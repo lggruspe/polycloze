@@ -26,6 +26,12 @@ func Course(l1, l2 string) string {
 	return path.Join(DataDir, "courses", fmt.Sprintf("%s-%s.db", l1, l2))
 }
 
+// Returns path to sync db.
+// l1 and l2: ISO 639-3 code.
+func Sync(userID int, l1, l2 string) string {
+	return path.Join(User(userID), "sync", fmt.Sprintf("%s-%s.db", l1, l2))
+}
+
 func Users() string {
 	return path.Join(StateDir, "users.db")
 }
