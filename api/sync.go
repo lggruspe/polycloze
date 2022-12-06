@@ -186,6 +186,13 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Save stats.
+	if err := saveStats(db, data.DifficultyStats, data.IntervalStats); err != nil {
+		log.Println(err)
+		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
+		return
+	}
+
 	// Empty response means ACK'ed without conflicts.
 	sendJSON(w, map[string]any{})
 }
@@ -207,6 +214,22 @@ func saveReviews(db *sql.DB, reviews []ReviewSchema) error {
 		); err != nil {
 			return fmt.Errorf("failed to save uploaded reviews: %v", err)
 		}
+	}
+	return nil
+}
+
+// Saves uploaded stats.
+func saveStats(db *sql.DB, difficultyStats, intervalStats string) error {
+	query := `
+		INSERT INTO stat (name, value) VALUES (?, ?)
+		ON CONFLICT (name) DO UPDATE SET
+			value = excluded.value
+	`
+	if _, err := db.Exec(query, "difficulty", difficultyStats); err != nil {
+		return fmt.Errorf("failed to update difficulty stats: %v", err)
+	}
+	if _, err := db.Exec(query, "interval", intervalStats); err != nil {
+		return fmt.Errorf("failed to update interval stats: %v", err)
 	}
 	return nil
 }
