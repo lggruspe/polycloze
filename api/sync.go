@@ -29,10 +29,10 @@ type ReviewSchema struct {
 }
 
 type SyncSchema struct {
-	Latest          int          `json:"latest"` // sequence number
-	Reviews         ReviewSchema `json:"reviews"`
-	DifficultyStats string       `json:"difficultyStats"`
-	IntervalStats   string       `json:"intervalStats"`
+	Latest          int            `json:"latest"` // sequence number
+	Reviews         []ReviewSchema `json:"reviews"`
+	DifficultyStats string         `json:"difficultyStats"`
+	IntervalStats   string         `json:"intervalStats"`
 }
 
 // Returns more recent reviews.
