@@ -18,7 +18,6 @@ CREATE TABLE review (
 
 CREATE TABLE stat (
 	name TEXT PRIMARY KEY,
-	updated INTEGER NOT NULL DEFAULT (unixepoch('now')),
 	value TEXT NOT NULL	-- json
 );
 
