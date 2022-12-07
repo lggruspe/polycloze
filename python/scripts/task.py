@@ -4,6 +4,7 @@ These are written to be executed in parallel, and so that targets are built
 only when sources are modified.
 """
 
+import csv
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -187,6 +188,50 @@ def compute_difficulty(lang1: str, lang2: str) -> Task:
     Cached for the same reasons as `language_tokenizer`.
     """
     return t.cast(Task, ComputeDifficultyTask(lang1, lang2))
+
+
+@dataclass(unsafe_hash=True)
+class CreateWordListTask:
+    lang1: str
+    lang2: str
+
+    @property
+    def __name__(self) -> str:
+        return f"CreateWordListTask({self.lang1}, {self.lang2})"
+
+    def __call__(self) -> None:
+        """Run this task."""
+        lang1 = self.lang1
+        lang2 = self.lang2
+
+        source = build/"polycloze"/"courses"/f"{lang1}-{lang2}.db"
+        target = build/"polycloze"/"words"/f"{lang1}-{lang2}.csv"
+
+        assert source.is_file()
+
+        if is_outdated([target], [source]):
+            print(f"Generating word list for {lang1}-{lang2}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+
+            with (
+                open(target, "w", encoding="utf-8") as file,
+                connect(source) as con,
+            ):
+                writer = csv.writer(file)
+                writer.writerow(["id", "word", "frequency_class"])
+
+                query = "SELECT id, word, frequency_class FROM word"
+                writer.writerows(con.execute(query))
+
+
+@cache
+def create_word_list(lang1: str, lang2: str) -> Task:
+    """Generate word list for course.
+
+    `lang1` and `lang2` should be valid ISO 639-3 language codes.
+    Cached for the same reasons as `language_tokenizer`.
+    """
+    return t.cast(Task, CreateWordListTask(lang1, lang2))
 
 
 @dataclass(unsafe_hash=True)

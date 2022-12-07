@@ -117,6 +117,10 @@ def build_dependency_graph(l1s: list[str], l2s: list[str]) -> DependencyGraph:
                     task.create_course_directory,
                     task.compute_difficulty(lang1, lang2),
                 )
+                deps.add(
+                    task.create_word_list(lang1, lang2),
+                    task.course_builder(lang1, lang2),
+                )
     return deps
 
 
