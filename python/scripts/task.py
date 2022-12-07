@@ -218,9 +218,13 @@ class CreateWordListTask:
                 connect(source) as con,
             ):
                 writer = csv.writer(file)
-                writer.writerow(["id", "word", "frequency_class"])
+                writer.writerow(["word", "frequency_class"])
 
-                query = "SELECT id, word, frequency_class FROM word"
+                query = """
+                    SELECT word, frequency_class
+                    FROM word
+                    ORDER BY frequency_class ASC
+                """
                 writer.writerows(con.execute(query))
 
 
