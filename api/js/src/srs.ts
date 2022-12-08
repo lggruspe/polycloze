@@ -1,90 +1,24 @@
 // Word + review scheduler.
 
 import { syncReviews } from "./api";
+import {
+    Database,
+    DifficultyStatsValue,
+    IntervalStatsValue,
+    ReviewsValue,
+    Schema,
+} from "./db";
 import { SyncResponseSchema } from "./schema";
 import { isTooEasy, isTooHard } from "./wilson";
 import {
     openDB,
-    DBSchema,
     IDBPCursorWithValue,
-    IDBPDatabase,
     IDBPObjectStore,
 } from "idb";
 
 type ReadOnly = "readonly" | "readwrite";
 type ReadWrite = "readwrite";
 type TransactionMode = ReadOnly | ReadWrite;
-
-// Used in indexedDB schema only (JSON API schema uses a different schema).
-type ReviewsValue = {
-    word: string;       // key
-    learned: Date;      // default now
-    reviewed: Date;     // default now
-    interval: number;   // default 0 or 24 hours
-    due: Date;          // reviewed + interval (in seconds)
-    sequenceNumber: number;
-};
-
-type DifficultyStatsValue = {
-    difficulty: number; // key
-    correct: number;    // default 0
-    incorrect: number;  // default 0
-};
-
-type IntervalStatsValue = {
-    interval: number;   // key (in hours)
-    correct: number;    // default 0
-    incorrect: number;  // default 0
-};
-
-type Word = {
-    word: string;   // key
-    frequencyClass: number;
-};
-
-interface Schema extends DBSchema {
-    "seen-words": {
-        key: string;
-        value: Word;
-    }
-
-    "unseen-words": {
-        key: string;
-        value: Word;
-    }
-
-    "sequence-numbers": {
-        key: "sequence-number"; // Literal
-        value: {
-            name: "sequence-number";
-            value: number;
-        };
-    };
-
-    "unacknowledged-reviews": {
-        key: string;
-        value: ReviewsValue;
-        indexes: { reviewed: Date };
-    };
-
-    "acknowledged-reviews": {
-        key: string;
-        value: ReviewsValue;
-        indexes: { due: Date, "sequence-number": number };
-    };
-
-    "difficulty-stats": {
-        key: number;
-        value: DifficultyStatsValue;
-    };
-
-    "interval-stats": {
-        key: number;
-        value: IntervalStatsValue;
-    };
-}
-
-type Database = IDBPDatabase<Schema>;
 
 // Upgrades indexed db to the new version.
 function upgrade(db: Database, oldVersion: number) {
@@ -135,8 +69,8 @@ function upgrade(db: Database, oldVersion: number) {
     }
 }
 
-export function openSRS() {
-    return openDB<Schema>("eng-spa", undefined, {
+export function openSRS(l1: string, l2: string) {
+    return openDB<Schema>(`${l1}-${l2}`, undefined, {
         upgrade,
     });
 }
