@@ -1,5 +1,7 @@
 // Wrappers for api calls.
 
+import { parseCSV } from "./csv";
+import { Database } from "./db";
 import { Item } from "./item";
 import { getL1, getL2 } from "./language";
 import { fetchJson, resolve, submitJson } from "./request";
@@ -205,6 +207,20 @@ export async function fetchSentences(options: FetchSentencesOptions = {}): Promi
         mode: "cors" as RequestMode,
     });
     return json.sentences;
+}
+
+// Downloads word list into the database.
+export function fetchWordList(db: Database): Promise<unknown> {
+    const l1 = getL1().code;
+    const l2 = getL2().code;
+    const url = resolve(`/share/words/${l1}-${l2}.csv`);
+
+    const tx = db.transaction("unseen-words", "readwrite");
+    const store = tx.objectStore("unseen-words");
+    return parseCSV(url, data => {
+        const [word, frequencyClass] = data;
+        store.put({ word, frequencyClass: Number(frequencyClass) });
+    });
 }
 
 type SyncReviewsOptions = {
