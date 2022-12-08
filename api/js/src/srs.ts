@@ -37,9 +37,24 @@ type IntervalStatsValue = {
     incorrect: number;  // default 0
 };
 
+type Word = {
+    word: string;   // key
+    frequencyClass: number;
+};
+
 interface Schema extends DBSchema {
+    "seen-words": {
+        key: string;
+        value: Word;
+    }
+
+    "unseen-words": {
+        key: string;
+        value: Word;
+    }
+
     "sequence-numbers": {
-        key: "sequence-number";
+        key: "sequence-number"; // Literal
         value: {
             name: "sequence-number";
             value: number;
@@ -76,6 +91,14 @@ function upgrade(db: Database, oldVersion: number) {
     if (oldVersion < 1) {
         db.createObjectStore("sequence-numbers", {
             keyPath: "name",
+        });
+
+        db.createObjectStore("seen-words", {
+            keyPath: "word",
+        });
+
+        db.createObjectStore("unseen-words", {
+            keyPath: "word",
         });
 
         const unacknowledgedReviews = db.createObjectStore("unacknowledged-reviews", {
@@ -136,7 +159,7 @@ export async function schedule(db: Database, limit = 10): Promise<string[]> {
     return reviews;
 }
 
-type StoreName = "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
+type StoreName = "seen-words" | "unseen-words" | "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
 
 type Store<T extends StoreName, U extends TransactionMode> = IDBPObjectStore<Schema, ("interval-stats")[], T, U>;
 
