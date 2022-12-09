@@ -6,11 +6,15 @@ package api
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 
 	"github.com/lggruspe/polycloze/basedir"
 	"github.com/lggruspe/polycloze/database"
 )
+
+// Version string of all course files.
+var dataVersion string
 
 type Language struct {
 	Code  string `json:"code"` // ISO 639-3
@@ -25,6 +29,15 @@ type Course struct {
 
 // Look for installed languages and courses.
 func Startup() {
+	// Set version string.
+	versionFile := filepath.Join(basedir.DataDir, "version.txt")
+	version, err := os.ReadFile(versionFile)
+	if err != nil {
+		log.Fatal("Couldn't set version number.")
+	}
+	dataVersion = string(version)
+
+	// Look for courses ang languages.
 	courses := findCourses()
 	languages := findL1Languages(courses)
 	if len(languages) <= 0 {
@@ -33,7 +46,7 @@ func Startup() {
 
 	// Generate courses.json.
 	coursesJSON := filepath.Join(basedir.StateDir, "courses.json")
-	err := writeJSON(coursesJSON, map[string][]Course{
+	err = writeJSON(coursesJSON, map[string][]Course{
 		"courses": courses,
 	})
 	if err != nil {
