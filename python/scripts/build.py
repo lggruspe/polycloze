@@ -97,6 +97,8 @@ def build_dependency_graph(l1s: list[str], l2s: list[str]) -> DependencyGraph:
         task.decompress_sentences,
     )
 
+    deps.add(task.generate_version_string, task.create_course_directory)
+
     for lang in sorted(set(l1s + l2s)):
         deps.add(task.language_tokenizer(lang), task.prepare_sentences)
 

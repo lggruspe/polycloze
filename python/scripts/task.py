@@ -12,6 +12,7 @@ from shutil import copyfile, move
 from sqlite3 import connect
 from tempfile import TemporaryDirectory
 import typing as t
+from uuid import uuid4
 
 from .dependency import is_outdated, Task
 from .difficulty import compute_difficulty_values
@@ -330,3 +331,14 @@ def create_empty_course() -> None:
 def create_course_directory() -> None:
     """Create course directory."""
     (build/"polycloze"/"courses").mkdir(parents=True, exist_ok=True)
+
+
+def generate_version_string() -> None:
+    """Generate version string in a text file.
+
+    The version string is randomly generated and does not depend on the content
+    of the course files.
+    It changes every build.
+    """
+    version = uuid4().urn[len("urn:uuid:"):]
+    (build/"polycloze"/"version.txt").write_text(version, encoding="utf-8")
