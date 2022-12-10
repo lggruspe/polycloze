@@ -2,8 +2,11 @@
 
 import { fetchItems } from "./api";
 import { PartWithAnswers, hasAnswers } from "./blank";
+import { Database } from "./db";
 import { Item } from "./item";
+import { getL1, getL2 } from "./language";
 import { Sentence } from "./sentence";
+import { openSRS } from "./srs";
 
 function * getBlankParts(sentence: Sentence): IterableIterator<PartWithAnswers> {
     for (const part of sentence.parts) {
@@ -16,12 +19,14 @@ function * getBlankParts(sentence: Sentence): IterableIterator<PartWithAnswers> 
 export class ItemBuffer {
     buffer: Item[];
     keys: Set<string>;
+    dbPromise: Promise<Database>;
 
     frequencyClass?: number;
 
     constructor() {
         this.buffer = [];
         this.keys = new Set();
+        this.dbPromise = openSRS(getL1().code, getL2().code);
 
         const listener = (event: Event) => {
             const word = (event as CustomEvent).detail.word;

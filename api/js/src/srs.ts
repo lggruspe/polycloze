@@ -71,7 +71,7 @@ function upgrade(db: Database, oldVersion: number) {
     }
 }
 
-export function openSRS(l1: string, l2: string) {
+export function openSRS(l1: string, l2: string): Promise<Database> {
     return openDB<Schema>(`${l1}-${l2}`, undefined, {
         upgrade,
     });
