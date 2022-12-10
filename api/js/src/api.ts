@@ -180,6 +180,16 @@ export async function fetchItems(options: FetchItemsOptions = {}): Promise<Item[
     return json.items;
 }
 
+export async function experimentalFetchItems(
+    words: string[],
+    options: FetchItemsOptions = {},
+): Promise<Item[]> {
+    const { l1, l2 } = {...defaultFetchItemsOptions(), ...options};
+    const url = resolve(`/api/test/${l1}/${l2}`);
+    const json = await submitJson<ItemsSchema>(url, { words });
+    return json.items;
+}
+
 type FetchSentencesOptions = {
     l1?: string;
     l2?: string;
