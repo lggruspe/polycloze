@@ -79,9 +79,11 @@ async function * tokenize(stream: CharStream): AsyncGenerator<Token> {
 
         switch (c) {
         case ",":
+            await stream.advance();
             yield {tag: "field-delim"};
             break;
         case "\n":
+            await stream.advance();
             yield {tag: "record-delim"};
             break;
         case "\"":
@@ -110,6 +112,7 @@ async function readQuoted(stream: CharStream): Promise<Field> {
 
         if (c !== "\"") {
             value += c;
+            await stream.advance();
             continue;
         }
 
@@ -118,6 +121,7 @@ async function readQuoted(stream: CharStream): Promise<Field> {
             return {tag: "field", value};
         }
         value += "\"";
+        await stream.advance();
     }
 }
 
@@ -139,6 +143,7 @@ async function readField(stream: CharStream): Promise<Field> {
             return {tag: "field", value};
         default:
             value += c;
+            await stream.advance();
         }
     }
 }
@@ -163,5 +168,8 @@ async function * parse(stream: CharStream): AsyncGenerator<string[]> {
 
 // Generates records in CSV stream.
 export async function * streamCSV(reader: ReadableStreamDefaultReader): AsyncGenerator<string[]> {
-    yield * parse(new CharStream(reader));
+    const stream = new CharStream(reader);
+    for await (const record of parse(stream)) {
+        yield record;
+    }
 }
