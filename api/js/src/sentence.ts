@@ -86,18 +86,18 @@ export function createSentence(sentence: Sentence, done: () => void, enable: (ok
         for (const [i, input] of inputs.entries()) {
             const answer = input.value;
 
+            // Normalize word.
+            let word = answer;
+            for (const answer of blankParts[i].answers) {
+                if (compare(input.value, answer.text) === 0) {
+                    word = answer.normalized;
+                    break;
+                }
+            }
+
             const correct = !input.classList.contains("incorrect");
             const save = edit();
             submitReview(answer, correct).then(result => {
-                // Normalize word.
-                let word = answer;
-                for (const answer of blankParts[i].answers) {
-                    if (compare(input.value, answer.text) === 0) {
-                        word = answer.normalized;
-                        break;
-                    }
-                }
-
                 announceResult(word, correct);
                 save();
                 clearBuffer(result.frequencyClass);
