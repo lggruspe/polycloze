@@ -93,8 +93,6 @@ export async function schedule(
     limit = 10,
     exclude: Set<string> = new Set(),
 ): Promise<string[]> {
-    // TODO pass buffer or buffer method directly so that changes can
-    // immediately be seen when placement level changes
     const range = IDBKeyRange.upperBound(new Date());
 
     const storeNames: StoreName[] = [
