@@ -50,6 +50,7 @@ export interface Schema extends DBSchema {
     "unseen-words": {
         key: string;
         value: Word;
+        indexes: { "frequency-class": number };
     }
 
     "sequence-numbers": {

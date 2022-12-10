@@ -33,20 +33,27 @@ function upgrade(db: Database, oldVersion: number) {
             keyPath: "word",
         });
 
-        db.createObjectStore("unseen-words", {
+        const unseenWords = db.createObjectStore("unseen-words", {
             keyPath: "word",
+        });
+        unseenWords.createIndex("frequency-class", "frequencyClass", {
+            unique: false,
         });
 
         const unacknowledgedReviews = db.createObjectStore("unacknowledged-reviews", {
             keyPath: "word",
         });
-        unacknowledgedReviews.createIndex("reviewed", "reviewed", { unique: false });
+        unacknowledgedReviews.createIndex("reviewed", "reviewed", {
+            unique: false,
+        });
 
         const acknowledgedReviews = db.createObjectStore("acknowledged-reviews", {
             keyPath: "word",
         });
         acknowledgedReviews.createIndex("due", "due", { unique: false });
-        acknowledgedReviews.createIndex("sequence-number", "sequenceNumber", { unique: true });
+        acknowledgedReviews.createIndex("sequence-number", "sequenceNumber", {
+            unique: true,
+        });
 
         db.createObjectStore("difficulty-stats", {
             keyPath: "difficulty",
@@ -98,6 +105,12 @@ export async function schedule(
         }
         cursor = await cursor.continue();
     }
+
+    // TODO if limit isn't reached yet, add some unseen words
+    // - Add unseen words with frequencyClass >= preferred difficulty
+    // - If the limit hasn't been reached yet, add words < preferred difficulty
+    //
+    // Preferred difficulty = result of placement test.
     return reviews;
 }
 
