@@ -1,12 +1,12 @@
 // Item buffer
 
-import { fetchItems } from "./api";
 import { PartWithAnswers, hasAnswers } from "./blank";
+import { experimentalFetchItems } from "./api";
 import { Database } from "./db";
 import { Item } from "./item";
 import { getL1, getL2 } from "./language";
 import { Sentence } from "./sentence";
-import { openSRS } from "./srs";
+import { openSRS, schedule, sync } from "./srs";
 
 function * getBlankParts(sentence: Sentence): IterableIterator<PartWithAnswers> {
     for (const part of sentence.parts) {
@@ -57,10 +57,12 @@ export class ItemBuffer {
 
     backgroundFetch(count: number) {
         setTimeout(async() => {
-            const items = await fetchItems({
-                n: count,
-                x: Array.from(this.keys),
-            });
+            const db = await this.dbPromise;
+            await sync(db);
+
+            // TODO Exclude words in `this.keys`.
+            const words = await schedule(db, count);
+            const items = await experimentalFetchItems(words);
             items.forEach(item => this.add(item));
         });
     }
@@ -70,11 +72,15 @@ export class ItemBuffer {
     // no new items left.
     async take(): Promise<Item | undefined> {
         if (this.buffer.length === 0) {
-            const items = await fetchItems({
-                n: 2,
-                x: Array.from(this.keys),
-            });
+            const db = await this.dbPromise;
+            await sync(db);
+
+            // TODO Exclude words in `this.keys`.
+            const words = await schedule(db, 2);
+            const items = await experimentalFetchItems(words);
+
             this.backgroundFetch(2);
+
             items.forEach(item => this.add(item));
             return this.buffer.shift();
         }
