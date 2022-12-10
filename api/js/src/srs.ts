@@ -5,20 +5,18 @@ import {
     Database,
     DifficultyStatsValue,
     IntervalStatsValue,
+    ReadOnly,
+    ReadWrite,
     ReviewsValue,
     Schema,
+    Store,
 } from "./db";
 import { SyncResponseSchema } from "./schema";
 import { isTooEasy, isTooHard } from "./wilson";
 import {
     openDB,
     IDBPCursorWithValue,
-    IDBPObjectStore,
 } from "idb";
-
-type ReadOnly = "readonly" | "readwrite";
-type ReadWrite = "readwrite";
-type TransactionMode = ReadOnly | ReadWrite;
 
 // Upgrades indexed db to the new version.
 function upgrade(db: Database, oldVersion: number) {
@@ -96,10 +94,6 @@ export async function schedule(db: Database, limit = 10): Promise<string[]> {
     }
     return reviews;
 }
-
-type StoreName = "data-version" | "seen-words" | "unseen-words" | "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
-
-type Store<T extends StoreName, U extends TransactionMode> = IDBPObjectStore<Schema, ("interval-stats")[], T, U>;
 
 // Updates interval stats.
 async function updateIntervalStats(store: Store<"interval-stats", ReadWrite>, interval: number, correct: boolean) {
