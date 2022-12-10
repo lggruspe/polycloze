@@ -23,6 +23,10 @@ type TransactionMode = ReadOnly | ReadWrite;
 // Upgrades indexed db to the new version.
 function upgrade(db: Database, oldVersion: number) {
     if (oldVersion < 1) {
+        db.createObjectStore("data-version", {
+            keyPath: "name",
+        });
+
         db.createObjectStore("sequence-numbers", {
             keyPath: "name",
         });
@@ -93,7 +97,7 @@ export async function schedule(db: Database, limit = 10): Promise<string[]> {
     return reviews;
 }
 
-type StoreName = "seen-words" | "unseen-words" | "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
+type StoreName = "data-version" | "seen-words" | "unseen-words" | "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
 
 type Store<T extends StoreName, U extends TransactionMode> = IDBPObjectStore<Schema, ("interval-stats")[], T, U>;
 

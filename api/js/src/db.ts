@@ -33,6 +33,14 @@ type Word = {
 };
 
 export interface Schema extends DBSchema {
+    "data-version": {
+        key: "etag"; // Literal
+        value: {
+            name: "etag";
+            etag: string;
+        };
+    }
+
     "seen-words": {
         key: string;
         value: Word;
