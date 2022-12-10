@@ -215,12 +215,20 @@ export async function fetchWordList(db: Database): Promise<void> {
     const l2 = getL2().code;
     const url = resolve(`/share/words/${l1}-${l2}.csv`);
 
-    const tx = db.transaction("unseen-words", "readwrite");
-    const store = tx.objectStore("unseen-words");
+    const tx = db.transaction(["data-version", "unseen-words"], "readwrite");
+    const dataVersion = tx.objectStore("data-version");
+    const unseenWords = tx.objectStore("unseen-words");
 
     const response = await fetch(url.href, {
         mode: "cors" as RequestMode,
     });
+    const etag = response.headers.get("ETag") || "";
+    const version = (await dataVersion.get("etag"))?.etag || "";
+    if (etag === version) {
+        // Don't have do anything if word list is up-to-date.
+        return;
+    }
+
     const body = response.body;
     if (body == null) {
         return;
@@ -238,8 +246,11 @@ export async function fetchWordList(db: Database): Promise<void> {
             // Invalid record.
             continue;
         }
-        await store.put({ word, frequencyClass });
+        await unseenWords.put({ word, frequencyClass });
     }
+
+    // Update etag value stored in db.
+    await dataVersion.put({ name: "etag", etag });
 }
 
 type SyncReviewsOptions = {
