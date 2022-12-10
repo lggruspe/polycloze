@@ -108,8 +108,9 @@ export class ItemBuffer {
 
         if (this.frequencyClass != undefined && this.frequencyClass != level) {
             // Leaves some items in the buffer so flashcards come continuously.
-            // TODO reduce number of items to keep in the buffer
-            this.buffer.splice(3);
+            // The time it takes to review the items left in the buffer should
+            // be > time it takes to fetch the next batch of flashcards.
+            this.buffer.splice(2);
         }
         this.frequencyClass = level;
     }
