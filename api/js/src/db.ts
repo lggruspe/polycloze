@@ -89,6 +89,6 @@ export type ReadOnly = "readonly" | "readwrite";
 export type ReadWrite = "readwrite";
 export type TransactionMode = ReadOnly | ReadWrite;
 
-type StoreName = "data-version" | "seen-words" | "unseen-words" | "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
+export type StoreName = "data-version" | "seen-words" | "unseen-words" | "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
 
 export type Store<T extends StoreName, U extends TransactionMode> = IDBPObjectStore<Schema, ("interval-stats")[], T, U>;

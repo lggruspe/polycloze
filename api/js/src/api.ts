@@ -1,7 +1,7 @@
 // Wrappers for api calls.
 
 import { streamCSV } from "./csv";
-import { Database } from "./db";
+import { Database, StoreName } from "./db";
 import { Item } from "./item";
 import { getL1, getL2 } from "./language";
 import { fetchJson, resolve, submitJson } from "./request";
@@ -215,8 +215,16 @@ export async function fetchWordList(db: Database): Promise<void> {
     const l2 = getL2().code;
     const url = resolve(`/share/words/${l1}-${l2}.csv`);
 
-    const tx = db.transaction(["data-version", "unseen-words"], "readwrite");
+    const storeNames: StoreName[] = [
+        "data-version",
+        "acknowledged-reviews",
+        "seen-words",
+        "unseen-words",
+    ];
+    const tx = db.transaction(storeNames, "readwrite");
     const dataVersion = tx.objectStore("data-version");
+    const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
+    const seenWords = tx.objectStore("seen-words");
     const unseenWords = tx.objectStore("unseen-words");
 
     const response = await fetch(url.href, {
@@ -228,6 +236,9 @@ export async function fetchWordList(db: Database): Promise<void> {
         // Don't have do anything if word list is up-to-date.
         return;
     }
+
+    // Clear word stores first.
+    await Promise.all([seenWords.clear(), unseenWords.clear()]);
 
     const body = response.body;
     if (body == null) {
@@ -246,7 +257,11 @@ export async function fetchWordList(db: Database): Promise<void> {
             // Invalid record.
             continue;
         }
-        await unseenWords.put({ word, frequencyClass });
+        if (await acknowledgedReviews.get(word) != null) {
+            await seenWords.put({ word, frequencyClass });
+        } else {
+            await unseenWords.put({ word, frequencyClass });
+        }
     }
 
     // Update etag value stored in db.
