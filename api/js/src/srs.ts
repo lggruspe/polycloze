@@ -10,9 +10,12 @@ import {
     ReviewsValue,
     Schema,
     Store,
+    StoreName,
 } from "./db";
 import { SyncResponseSchema } from "./schema";
 import { isTooEasy, isTooHard } from "./wilson";
+import { easyWords, hardWords, placement } from "./words";
+
 import {
     openDB,
     IDBPCursorWithValue,
@@ -92,9 +95,14 @@ export async function schedule(
 ): Promise<string[]> {
     const range = IDBKeyRange.upperBound(new Date());
 
-    const tx = db.transaction("acknowledged-reviews", "readonly");
-    const store = tx.objectStore("acknowledged-reviews");
-    const index = store.index("due");
+    const storeNames: StoreName[] = [
+        "acknowledged-reviews",
+        "difficulty-stats",
+        "unseen-words",
+    ];
+    const tx = db.transaction(storeNames, "readonly");
+    const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
+    const index = acknowledgedReviews.index("due");
 
     const reviews = [];
     let cursor = await index.openCursor(range);
@@ -106,11 +114,24 @@ export async function schedule(
         cursor = await cursor.continue();
     }
 
-    // TODO if limit isn't reached yet, add some unseen words
-    // - Add unseen words with frequencyClass >= preferred difficulty
-    // - If the limit hasn't been reached yet, add words < preferred difficulty
-    //
-    // Preferred difficulty = result of placement test.
+    // If limit has been reached, return.
+    if (reviews.length >= limit) {
+        return reviews;
+    }
+
+    const difficultyStats = tx.objectStore("difficulty-stats");
+    const unseenWords = tx.objectStore("unseen-words");
+    const level = await placement(difficultyStats, unseenWords);
+    for await (const word of hardWords(unseenWords, level, limit - reviews.length)) {
+        reviews.push(word);
+    }
+
+    if (reviews.length >= limit) {
+        return reviews;
+    }
+    for await (const word of easyWords(unseenWords, level, limit - reviews.length)) {
+        reviews.push(word);
+    }
     return reviews;
 }
 
