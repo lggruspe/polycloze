@@ -6,7 +6,9 @@ import { Database } from "./db";
 import { Item } from "./item";
 import { getL1, getL2 } from "./language";
 import { Sentence } from "./sentence";
-import { openSRS, schedule, sync } from "./srs";
+import { openSRS, saveReview, schedule, sync } from "./srs";
+import { edit } from "./unsaved";
+import { placement } from "./words";
 
 function * getBlankParts(sentence: Sentence): IterableIterator<PartWithAnswers> {
     for (const part of sentence.parts) {
@@ -28,9 +30,16 @@ export class ItemBuffer {
         this.keys = new Set();
         this.dbPromise = openSRS(getL1().code, getL2().code);
 
-        const listener = (event: Event) => {
-            const word = (event as CustomEvent).detail.word;
+        const listener = async(event: Event) => {
+            const { word, correct } = (event as CustomEvent).detail;
+            const db = await this.dbPromise;
+
+            const save = edit();
+            await saveReview(db, word, correct);
             this.keys.delete(word);
+            save();
+
+            await this.clearStale();
         };
 
         // NOTE this never gets removed
@@ -88,19 +97,28 @@ export class ItemBuffer {
         return this.buffer.shift();
     }
 
-    clearIfStale(frequencyClass: number) {
-        if (this.frequencyClass != undefined && this.frequencyClass != frequencyClass) {
+    // Removes stale flashcards if placement level changed.
+    async clearStale() {
+        // Compute placement level.
+        const db = await this.dbPromise;
+        const tx = db.transaction(db.objectStoreNames, "readonly");
+        const difficultyStats = tx.objectStore("difficulty-stats");
+        const unseenWords = tx.objectStore("unseen-words");
+        const level = await placement(difficultyStats, unseenWords);
+
+        if (this.frequencyClass != undefined && this.frequencyClass != level) {
             // Leaves some items in the buffer so flashcards come continuously.
+            // TODO reduce number of items to keep in the buffer
             this.buffer.splice(3);
         }
-        this.frequencyClass = frequencyClass;
+        this.frequencyClass = level;
     }
 }
 
 // Dispatches custom event to tell item buffer about review result.
 export function announceResult(word: string, correct: boolean) {
     const event = new CustomEvent("polycloze-review", {
-        detail: { word, correct }
+        detail: { word, correct },
     });
     window.dispatchEvent(event);
 }

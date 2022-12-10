@@ -1,5 +1,4 @@
 import "./sentence.css";
-import { submitReview } from "./api";
 import {
     compare,
     createBlank,
@@ -10,7 +9,6 @@ import {
 } from "./blank";
 import { announceResult } from "./buffer";
 import { getL2 } from "./language";
-import { edit } from "./unsaved";
 
 export type Sentence = {
     id: number
@@ -28,13 +26,16 @@ function createPart(text: string): HTMLSpanElement {
 // Note: takes two callback functions.
 // - done: ?
 // - enable: Enables submit button.
-// - clearBuffer: Called when frequencyClass changes to remove stale items in buffer
 //
 // In addition to a div element, also returns two functions to be called by the
 // caller.
 // - check: ?
 // - resize: ?
-export function createSentence(sentence: Sentence, done: () => void, enable: (ok: boolean) => void, clearBuffer: (frequencyClass: number) => void): [HTMLDivElement, () => void, () => void] {
+export function createSentence(
+    sentence: Sentence,
+    done: () => void,
+    enable: (ok: boolean) => void,
+): [HTMLDivElement, () => void, () => void] {
     const resizeFns: Array<() => void> = [];
     const div = document.createElement("div");
     div.classList.add("sentence");
@@ -96,12 +97,7 @@ export function createSentence(sentence: Sentence, done: () => void, enable: (ok
             }
 
             const correct = !input.classList.contains("incorrect");
-            const save = edit();
-            submitReview(answer, correct).then(result => {
-                announceResult(word, correct);
-                save();
-                clearBuffer(result.frequencyClass);
-            });
+            announceResult(word, correct);
         }
         div.removeEventListener("change", check);
         done();

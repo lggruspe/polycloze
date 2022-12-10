@@ -21,7 +21,7 @@ export async function createApp(buffer: ItemBuffer): Promise<[HTMLDivElement, ()
         });
     };
 
-    const [child, resize] = createItem(tts, item, next, (frequencyClass: number) => buffer.clearIfStale(frequencyClass));
+    const [child, resize] = createItem(tts, item, next);
     div.appendChild(child);
 
     const ready = () => {

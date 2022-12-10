@@ -39,9 +39,13 @@ function createTranslation(translation: Translation): HTMLParagraphElement {
     return p;
 }
 
-function createItemBody(item: Item, done: () => void, enable: (ok: boolean) => void, clearBuffer: (frequencyClass: number) => void): [HTMLDivElement, () => void, () => void] {
+function createItemBody(
+    item: Item,
+    done: () => void,
+    enable: (ok: boolean) => void,
+): [HTMLDivElement, () => void, () => void] {
     const div = document.createElement("div");
-    const [sentence, check, resize] = createSentence(item.sentence, done, enable, clearBuffer);
+    const [sentence, check, resize] = createSentence(item.sentence, done, enable);
     div.append(
         sentence,
         createTranslation(item.translation)
@@ -70,7 +74,11 @@ function createSubmitButton(onClick?: (event: Event) => void): [HTMLButtonElemen
     return [button, enable];
 }
 
-export function createItem(tts: TTS, item: Item, next: () => void, clearBuffer: (frequencyClass: number) => void): [HTMLDivElement, () => void] {
+export function createItem(
+    tts: TTS,
+    item: Item,
+    next: () => void,
+): [HTMLDivElement, () => void] {
     const [submitBtn, enable] = createSubmitButton();
 
     const done = () => {
@@ -82,7 +90,7 @@ export function createItem(tts: TTS, item: Item, next: () => void, clearBuffer: 
         submitBtn.replaceWith(btn);
         btn.focus();
     };
-    const [body, check, resize] = createItemBody(item, done, enable, clearBuffer);
+    const [body, check, resize] = createItemBody(item, done, enable);
     const footer = createItemFooter(submitBtn);
 
     submitBtn.addEventListener("click", check);
