@@ -1,6 +1,6 @@
 // Word + review scheduler.
 
-import { syncReviews } from "./api";
+import { fetchWordList, syncReviews } from "./api";
 import {
     Database,
     DifficultyStatsValue,
@@ -401,7 +401,7 @@ async function push(
 
 // Syncs local DB with remote DB.
 export async function sync(db: Database) {
-    // TODO pull word list
+    await fetchWordList(db);
 
     // Push unpushed changes.
     const tx = db.transaction(db.objectStoreNames, "readwrite");
