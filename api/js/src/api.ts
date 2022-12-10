@@ -276,6 +276,7 @@ export async function fetchWordList(db: Database): Promise<void> {
 
     // Update etag value stored in db.
     await dataVersion.put({ name: "etag", etag });
+    return await tx.done;
 }
 
 type SyncReviewsOptions = {

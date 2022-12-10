@@ -345,7 +345,12 @@ async function setSequenceNumber(
     return sequenceNumber;
 }
 
-export async function saveReview(db: Database, word: string, correct: boolean, now: Date = new Date()) {
+export async function saveReview(
+    db: Database,
+    word: string,
+    correct: boolean,
+    now: Date = new Date(),
+): Promise<void> {
     const tx = db.transaction(db.objectStoreNames, "readwrite");
     const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
 
@@ -364,7 +369,7 @@ export async function saveReview(db: Database, word: string, correct: boolean, n
     unacknowledgedReviews.put(review);
 
     autoTune(intervalStats, previous?.interval || 0);
-    return tx.done;
+    return await tx.done;
 }
 
 // Gets all unacknowledged reviews from the database.
@@ -440,7 +445,7 @@ async function push(
 }
 
 // Syncs local DB with remote DB.
-export async function sync(db: Database) {
+export async function sync(db: Database): Promise<void> {
     await fetchWordList(db);
 
     // Push unpushed changes.
@@ -463,7 +468,7 @@ export async function sync(db: Database) {
     if (reviews.length === 0) {
         // ACK un-ACK'ed reviews if there are no conflicts.
         acknowledgeReviews(acknowledgedReviews, unacknowledgedReviews);
-        return;
+        return await tx.done;
     }
 
     // Resolve conflicts.
@@ -499,6 +504,7 @@ export async function sync(db: Database) {
         replaceDifficultyStats(difficultyStats, difficultyStatsJSON),
         replaceIntervalStats(intervalStats, intervalStatsJSON),
     ]);
+    return await tx.done;
 }
 
 // Replaces difficulty stats with stats received from server.
