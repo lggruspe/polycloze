@@ -353,12 +353,12 @@ export async function saveReview(db: Database, word: string, correct: boolean, n
     const previous = await acknowledgedReviews.get(word);
     if (previous == null || previous.due <= now) {
         // Update interval stats if word is new or if the student didn't cram.
-        const store = tx.objectStore("interval-stats") as Store<"interval-stats", ReadWrite>;
+        const store = tx.objectStore("interval-stats");
         await updateIntervalStats(store, previous?.interval || 0, correct);
     }
 
-    const intervalStats = tx.objectStore("interval-stats") as Store<"interval-stats", ReadWrite>;
-    const sequenceNumbers = tx.objectStore("sequence-numbers") as Store<"sequence-numbers", ReadWrite>;
+    const intervalStats = tx.objectStore("interval-stats");
+    const sequenceNumbers = tx.objectStore("sequence-numbers");
     const review = await nextReview(intervalStats, sequenceNumbers, word, previous, correct);
     const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews");
     unacknowledgedReviews.put(review);
@@ -445,18 +445,10 @@ export async function sync(db: Database) {
 
     // Push unpushed changes.
     const tx = db.transaction(db.objectStoreNames, "readwrite");
-    const acknowledgedReviews = (
-        tx.objectStore("acknowledged-reviews") as Store<"acknowledged-reviews", ReadWrite>
-    );
-    const unacknowledgedReviews = (
-        tx.objectStore("unacknowledged-reviews") as Store<"unacknowledged-reviews", ReadWrite>
-    );
-    const difficultyStats = (
-        tx.objectStore("difficulty-stats") as Store<"difficulty-stats", ReadWrite>
-    );
-    const intervalStats = (
-        tx.objectStore("interval-stats") as Store<"interval-stats", ReadWrite>
-    );
+    const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
+    const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews");
+    const difficultyStats = tx.objectStore("difficulty-stats");
+    const intervalStats = tx.objectStore("interval-stats");
 
     // Check response.
     const resp = await push(
@@ -500,9 +492,7 @@ export async function sync(db: Database) {
         }
     }
 
-    const sequenceNumbers = (
-        tx.objectStore("sequence-numbers") as Store<"sequence-numbers", ReadWrite>
-    );
+    const sequenceNumbers = tx.objectStore("sequence-numbers");
     await Promise.all([
         setSequenceNumber(sequenceNumbers, latest),
         unacknowledgedReviews.clear(),
