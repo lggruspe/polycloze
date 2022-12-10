@@ -1,6 +1,6 @@
 // Wrappers for api calls.
 
-import { parseCSV } from "./csv";
+import { streamCSV } from "./csv";
 import { Database } from "./db";
 import { Item } from "./item";
 import { getL1, getL2 } from "./language";
@@ -210,17 +210,36 @@ export async function fetchSentences(options: FetchSentencesOptions = {}): Promi
 }
 
 // Downloads word list into the database.
-export function fetchWordList(db: Database): Promise<unknown> {
+export async function fetchWordList(db: Database): Promise<void> {
     const l1 = getL1().code;
     const l2 = getL2().code;
     const url = resolve(`/share/words/${l1}-${l2}.csv`);
 
     const tx = db.transaction("unseen-words", "readwrite");
     const store = tx.objectStore("unseen-words");
-    return parseCSV(url, data => {
-        const [word, frequencyClass] = data;
-        store.put({ word, frequencyClass: Number(frequencyClass) });
+
+    const response = await fetch(url.href, {
+        mode: "cors" as RequestMode,
     });
+    const body = response.body;
+    if (body == null) {
+        return;
+    }
+
+    const reader = body.getReader();
+    for await (const record of streamCSV(reader)) {
+        if (record.length !== 2) {
+            // Invalid record.
+            continue;
+        }
+        const word = record[0];
+        const frequencyClass = Number(record[1]);
+        if (isNaN(frequencyClass)) {
+            // Invalid record.
+            continue;
+        }
+        await store.put({ word, frequencyClass });
+    }
 }
 
 type SyncReviewsOptions = {
