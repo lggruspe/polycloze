@@ -434,6 +434,7 @@ async function push(
     difficultyStats: Store<"difficulty-stats", ReadOnly>,
     intervalStats: Store<"interval-stats", ReadOnly>,
 ): Promise<SyncResponseSchema> {
+    // TODO don't make remote requests inside transactions
     const latest = await latestAcknowledgedReview(acknowledgedReviews);
     const data = {
         "latest": latest?.sequenceNumber || 0,
@@ -446,6 +447,7 @@ async function push(
 
 // Syncs local DB with remote DB.
 export async function sync(db: Database): Promise<void> {
+    // TODO be mindful of transaction lifetimes
     await fetchWordList(db);
 
     // Push unpushed changes.
@@ -456,6 +458,7 @@ export async function sync(db: Database): Promise<void> {
     const intervalStats = tx.objectStore("interval-stats");
 
     // Check response.
+    // TODO be mindful of transaction lifetimes
     const resp = await push(
         acknowledgedReviews,
         unacknowledgedReviews,
@@ -498,6 +501,7 @@ export async function sync(db: Database): Promise<void> {
     }
 
     const sequenceNumbers = tx.objectStore("sequence-numbers");
+    // TODO be mindful of transaction lifetimes
     await Promise.all([
         setSequenceNumber(sequenceNumbers, latest),
         unacknowledgedReviews.clear(),
