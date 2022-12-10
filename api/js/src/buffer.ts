@@ -60,8 +60,7 @@ export class ItemBuffer {
             const db = await this.dbPromise;
             await sync(db);
 
-            // TODO Exclude words in `this.keys`.
-            const words = await schedule(db, count);
+            const words = await schedule(db, count, this.keys);
             const items = await experimentalFetchItems(words);
             items.forEach(item => this.add(item));
         });
@@ -75,8 +74,7 @@ export class ItemBuffer {
             const db = await this.dbPromise;
             await sync(db);
 
-            // TODO Exclude words in `this.keys`.
-            const words = await schedule(db, 2);
+            const words = await schedule(db, 2, this.keys);
             const items = await experimentalFetchItems(words);
 
             this.backgroundFetch(2);

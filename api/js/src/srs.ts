@@ -78,7 +78,11 @@ export function openSRS(l1: string, l2: string): Promise<Database> {
 }
 
 // Returns words that are due for a review.
-export async function schedule(db: Database, limit = 10): Promise<string[]> {
+export async function schedule(
+    db: Database,
+    limit = 10,
+    exclude: Set<string> = new Set(),
+): Promise<string[]> {
     const range = IDBKeyRange.upperBound(new Date());
 
     const tx = db.transaction("acknowledged-reviews", "readonly");
@@ -88,8 +92,10 @@ export async function schedule(db: Database, limit = 10): Promise<string[]> {
     const reviews = [];
     let cursor = await index.openCursor(range);
     while (cursor && reviews.length < limit) {
-        // TODO exclude buffered words
-        reviews.push(cursor.value.word);
+        const word = cursor.value.word;
+        if (!exclude.has(word)) {
+            reviews.push(word);
+        }
         cursor = await cursor.continue();
     }
     return reviews;
