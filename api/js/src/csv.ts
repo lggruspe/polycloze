@@ -82,6 +82,10 @@ async function * tokenize(stream: CharStream): AsyncGenerator<Token> {
             await stream.advance();
             yield {tag: "field-delim"};
             break;
+        case "\r":
+            // Ignore.
+            await stream.advance();
+            break;
         case "\n":
             await stream.advance();
             yield {tag: "record-delim"};
@@ -111,6 +115,7 @@ async function readQuoted(stream: CharStream): Promise<Field> {
         }
 
         if (c !== "\"") {
+            // NOTE Preserves carriage returns if inside a quoted field.
             value += c;
             await stream.advance();
             continue;
@@ -139,6 +144,7 @@ async function readField(stream: CharStream): Promise<Field> {
 
         switch (c) {
         case "\n":
+        case "\r":
         case ",":
             return {tag: "field", value};
         default:
