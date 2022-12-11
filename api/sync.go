@@ -214,7 +214,9 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 // Saves uploaded reviews.
 func saveReviews(tx *sql.Tx, reviews []ReviewSchema) error {
 	query := `
-		INSERT INTO review (word, learned, reviewed, interval, sequence_number)
+		INSERT OR REPLACE INTO review (
+			word, learned, reviewed, interval, sequence_number
+		)
 		VALUES (?, ?, ?, ?, ?)
 	`
 	for _, review := range reviews {
@@ -234,11 +236,7 @@ func saveReviews(tx *sql.Tx, reviews []ReviewSchema) error {
 
 // Saves uploaded stats.
 func saveStats(tx *sql.Tx, difficultyStats, intervalStats string) error {
-	query := `
-		INSERT INTO stat (name, value) VALUES (?, ?)
-		ON CONFLICT (name) DO UPDATE SET
-			value = excluded.value
-	`
+	query := `INSERT OR REPLACE INTO stat (name, value) VALUES (?, ?)`
 	if _, err := tx.Exec(query, "difficulty", difficultyStats); err != nil {
 		return fmt.Errorf("failed to update difficulty stats: %v", err)
 	}
