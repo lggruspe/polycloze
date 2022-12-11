@@ -12,7 +12,6 @@ import {
     Store,
     StoreName,
 } from "./db";
-import { SyncResponseSchema } from "./schema";
 import { isTooEasy, isTooHard } from "./wilson";
 import { easyWords, hardWords, placement } from "./words";
 
@@ -426,48 +425,42 @@ async function latestAcknowledgedReview(
     return undefined;
 }
 
-// Pushes new data to the server.
-// Returns API response.
-async function push(
-    acknowledgedReviews: Store<"acknowledged-reviews", ReadOnly>,
-    unacknowledgedReviews: Store<"unacknowledged-reviews", ReadOnly>,
-    difficultyStats: Store<"difficulty-stats", ReadOnly>,
-    intervalStats: Store<"interval-stats", ReadOnly>,
-): Promise<SyncResponseSchema> {
-    // TODO don't make remote requests inside transactions
-    const latest = await latestAcknowledgedReview(acknowledgedReviews);
-    const data = {
-        "latest": latest?.sequenceNumber || 0,
-        "reviews": await getAllUnacknowledgedReviews(unacknowledgedReviews),
-        "difficultyStats": await getDifficultyStatsJSON(difficultyStats),
-        "intervalStats": await getIntervalStatsJSON(intervalStats),
-    };
-    return syncReviews(data);
-}
-
-// Syncs local DB with remote DB.
-export async function sync(db: Database): Promise<void> {
-    // TODO be mindful of transaction lifetimes
-    await fetchWordList(db);
-
-    // Push unpushed changes.
-    const tx = db.transaction(db.objectStoreNames, "readwrite");
+// Prepares data to push to the server.
+async function prepareUnpushedData(db: Database) {
+    // Takes a DB to prevent the caller from fetching within the same
+    // transaction.
+    const storeNames: StoreName[] = [
+        "acknowledged-reviews",
+        "unacknowledged-reviews",
+        "difficulty-stats",
+        "interval-stats",
+    ];
+    const tx = db.transaction(storeNames, "readonly");
     const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
     const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews");
     const difficultyStats = tx.objectStore("difficulty-stats");
     const intervalStats = tx.objectStore("interval-stats");
 
-    // Check response.
-    // TODO be mindful of transaction lifetimes
-    const resp = await push(
-        acknowledgedReviews,
-        unacknowledgedReviews,
-        difficultyStats,
-        intervalStats,
-    );
+    const latest = await latestAcknowledgedReview(acknowledgedReviews);
+    return {
+        "latest": latest?.sequenceNumber || 0,
+        "reviews": await getAllUnacknowledgedReviews(unacknowledgedReviews),
+        "difficultyStats": await getDifficultyStatsJSON(difficultyStats),
+        "intervalStats": await getIntervalStatsJSON(intervalStats),
+    };
+}
 
+// Syncs local DB with remote DB.
+export async function sync(db: Database): Promise<void> {
+    await fetchWordList(db);
+
+    // Push unpushed changes.
+    const resp = await syncReviews(await prepareUnpushedData(db));
+
+    const tx = db.transaction(db.objectStoreNames, "readwrite");
+    const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
+    const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews");
     const reviews = resp.reviews || [];
-
     if (reviews.length === 0) {
         // ACK un-ACK'ed reviews if there are no conflicts.
         acknowledgeReviews(acknowledgedReviews, unacknowledgedReviews);
@@ -477,6 +470,7 @@ export async function sync(db: Database): Promise<void> {
     // Resolve conflicts.
     const difficultyStatsJSON = resp?.difficultyStats || "";
     const intervalStatsJSON = resp?.intervalStats || "";
+    // TODO incorrect assertion because server might not have a copy yet?
     console.assert(difficultyStatsJSON.length > 0);
     console.assert(intervalStatsJSON.length > 0);
 
@@ -501,6 +495,8 @@ export async function sync(db: Database): Promise<void> {
     }
 
     const sequenceNumbers = tx.objectStore("sequence-numbers");
+    const difficultyStats = tx.objectStore("difficulty-stats");
+    const intervalStats = tx.objectStore("interval-stats");
     // TODO be mindful of transaction lifetimes
     await Promise.all([
         setSequenceNumber(sequenceNumbers, latest),
