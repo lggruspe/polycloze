@@ -29,7 +29,7 @@ class CharStream {
     // Returns undefined if there's none.
     async peek(): Promise<string | undefined> {
         if (this.position < this.chunk.length) {
-            return this.chunk.slice(this.position, 1);
+            return this.chunk.slice(this.position, this.position+1);
         }
         if (!await this.readChunk()) {
             return undefined;
@@ -41,7 +41,7 @@ class CharStream {
     // Returns the next character in the stream, or undefined if there's none.
     async advance(): Promise<string | undefined> {
         if (this.position < this.chunk.length) {
-            const result = this.chunk.slice(this.position, 1);
+            const result = this.chunk.slice(this.position, this.position+1);
             this.position++;
             return result;
         }

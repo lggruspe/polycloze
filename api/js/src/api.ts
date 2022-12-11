@@ -230,6 +230,30 @@ export async function fetchWordList(db: Database): Promise<void> {
     });
     const etag = response.headers.get("ETag") || "";
 
+    // Get all words from the CSV. This should probably be okay, because the
+    // largest CSV file is only ~2MB big.
+    // The idb transaction closes when you do it inside the transaction.
+    const body = response.body;
+    if (body == null) {
+        return;
+    }
+
+    const records: [string, number][] = [];
+    const reader = body.getReader();
+    for await (const record of streamCSV(reader)) {
+        if (record.length !== 2) {
+            // Invalid record.
+            continue;
+        }
+        const word = record[0];
+        const frequencyClass = Number(record[1]);
+        if (isNaN(frequencyClass)) {
+            // Invalid record.
+            continue;
+        }
+        records.push([word, frequencyClass]);
+    }
+
     const storeNames: StoreName[] = [
         "data-version",
         "acknowledged-reviews",
@@ -251,23 +275,7 @@ export async function fetchWordList(db: Database): Promise<void> {
     // Clear word stores first.
     await Promise.all([seenWords.clear(), unseenWords.clear()]);
 
-    const body = response.body;
-    if (body == null) {
-        return;
-    }
-
-    const reader = body.getReader();
-    for await (const record of streamCSV(reader)) {
-        if (record.length !== 2) {
-            // Invalid record.
-            continue;
-        }
-        const word = record[0];
-        const frequencyClass = Number(record[1]);
-        if (isNaN(frequencyClass)) {
-            // Invalid record.
-            continue;
-        }
+    for (const [word, frequencyClass] of records) {
         if (await acknowledgedReviews.get(word) != null) {
             await seenWords.put({ word, frequencyClass });
         } else {
