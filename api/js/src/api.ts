@@ -219,16 +219,30 @@ export async function fetchSentences(options: FetchSentencesOptions = {}): Promi
     return json.sentences;
 }
 
+// Gets ETag of current word list.
+async function getWordListVersion(db: Database): Promise<string> {
+    const tx = db.transaction("data-version", "readonly");
+    const store = tx.objectStore("data-version");
+    const value = await store.get("etag");
+    return value?.etag || "";
+}
+
 // Downloads word list into the database.
 export async function fetchWordList(db: Database): Promise<void> {
     const l1 = getL1().code;
     const l2 = getL2().code;
     const url = resolve(`/share/words/${l1}-${l2}.csv`);
 
+    // TODO pass etag value to server so it doesn't have to respond if local
+    // copy is up-to-date.
     const response = await fetch(url.href, {
         mode: "cors" as RequestMode,
     });
     const etag = response.headers.get("ETag") || "";
+    if (etag === await getWordListVersion(db)) {
+        // Don't have do anything if word list is up-to-date.
+        return;
+    }
 
     // Get all words from the CSV. This should probably be okay, because the
     // largest CSV file is only ~2MB big.
@@ -238,6 +252,7 @@ export async function fetchWordList(db: Database): Promise<void> {
         return;
     }
 
+    // TODO Will it parse faster if done by service workers?
     const records: [string, number][] = [];
     const reader = body.getReader();
     for await (const record of streamCSV(reader)) {
@@ -265,12 +280,6 @@ export async function fetchWordList(db: Database): Promise<void> {
     const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
     const seenWords = tx.objectStore("seen-words");
     const unseenWords = tx.objectStore("unseen-words");
-
-    const version = (await dataVersion.get("etag"))?.etag || "";
-    if (etag === version) {
-        // Don't have do anything if word list is up-to-date.
-        return;
-    }
 
     // Clear word stores first.
     await Promise.all([seenWords.clear(), unseenWords.clear()]);
