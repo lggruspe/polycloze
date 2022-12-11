@@ -498,11 +498,7 @@ export async function sync(db: Database): Promise<void> {
         const { interval, sequenceNumber } = review;
         // TODO won't this be slow when pulling a large number of reviews?
         // E.g. when user uses a new device?
-        const value = await wordList.get(review.word);
-        if (value != null) {
-            value.seen = 1;
-            promises.push(wordList.put(value));
-        }
+        promises.push(markAsSeen(wordList, review.word));
         acknowledgedReviews.put({
             word: review.word,
             learned: new Date(review.learned),
@@ -563,14 +559,22 @@ async function acknowledgeReviews(
     const promises = [];
     let cursor = await unacknowledgedReviews.openCursor();
     while (cursor) {
-        const value = await wordList.get(cursor.value.word);
-        if (value != null) {
-            value.seen = 1;
-            promises.push(wordList.put(value));
-        }
+        promises.push(markAsSeen(wordList, cursor.value.word));
         acknowledgedReviews.put(cursor.value);
         cursor = await cursor.continue();
     }
     await unacknowledgedReviews.clear();
     await Promise.all(promises);
+}
+
+// Marks word as seen.
+async function markAsSeen(
+    store: Store<"word-list", ReadWrite>,
+    word: string,
+): Promise<void> {
+    const value = await store.get(word);
+    if (value != null) {
+        value.seen = 1;
+        await store.put(value);
+    }
 }
