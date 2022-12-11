@@ -233,13 +233,15 @@ export async function fetchWordList(db: Database): Promise<void> {
     const l2 = getL2().code;
     const url = resolve(`/share/words/${l1}-${l2}.csv`);
 
-    // TODO pass etag value to server so it doesn't have to respond if local
-    // copy is up-to-date.
+    const currentETag = await getWordListVersion(db);
     const response = await fetch(url.href, {
         mode: "cors" as RequestMode,
+        headers: {
+            "If-None-Match": currentETag,
+        },
     });
     const etag = response.headers.get("ETag") || "";
-    if (etag === await getWordListVersion(db)) {
+    if (etag === currentETag) {
         // Don't have do anything if word list is up-to-date.
         return;
     }
