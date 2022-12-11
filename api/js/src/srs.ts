@@ -124,12 +124,16 @@ export async function schedule(
     const difficultyStats = tx.objectStore("difficulty-stats");
     const wordList = tx.objectStore("word-list");
     const level = await placement(difficultyStats, wordList);
-    reviews.push(...await hardWords(wordList, level, limit - reviews.length));
+    reviews.push(
+        ...await hardWords(wordList, level, limit - reviews.length, exclude),
+    );
 
     if (reviews.length >= limit) {
         return reviews;
     }
-    reviews.push(...await easyWords(wordList, level, limit - reviews.length));
+    reviews.push(
+        ...await easyWords(wordList, level, limit - reviews.length, exclude),
+    );
     return reviews;
 }
 
@@ -498,7 +502,6 @@ export async function sync(db: Database): Promise<void> {
     const sequenceNumbers = tx.objectStore("sequence-numbers");
     const difficultyStats = tx.objectStore("difficulty-stats");
     const intervalStats = tx.objectStore("interval-stats");
-    // TODO be mindful of transaction lifetimes
     await Promise.all([
         setSequenceNumber(sequenceNumbers, latest),
         unacknowledgedReviews.clear(),

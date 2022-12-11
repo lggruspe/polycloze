@@ -50,10 +50,12 @@ export async function placement(
 
 // Returns unseen words that are >= preferred difficulty.
 // `limit`: max number of words to return.
+// `exclude`: words to exclude.
 export async function hardWords(
     store: Store<"word-list", ReadOnly>,
     difficulty: number,
     limit: number,
+    exclude: Set<string> = new Set(),
 ): Promise<string[]> {
     const range = IDBKeyRange.bound(
         [0, difficulty],
@@ -67,7 +69,10 @@ export async function hardWords(
 
     const words = [];
     while (limit-- > 0 && cursor) {
-        words.push(cursor.value.word);
+        const word = cursor.value.word;
+        if (!exclude.has(word)) {
+            words.push(word);
+        }
         cursor = await cursor.continue();
     }
     return words;
@@ -75,10 +80,12 @@ export async function hardWords(
 
 // Returns unseen words that are < preferred difficulty.
 // `limit`: max number of words to return.
+// `exclude`: words to exclude.
 export async function easyWords(
     store: Store<"word-list", ReadOnly>,
     difficulty: number,
     limit: number,
+    exclude: Set<string> = new Set(),
 ): Promise<string[]> {
     const range = IDBKeyRange.upperBound([0, difficulty], true);
 
@@ -87,7 +94,10 @@ export async function easyWords(
 
     const words = [];
     while (limit-- > 0 && cursor) {
-        words.push(cursor.value.word);
+        const word = cursor.value.word;
+        if (!exclude.has(word)) {
+            words.push(word);
+        }
         cursor = await cursor.continue();
     }
     return words;
