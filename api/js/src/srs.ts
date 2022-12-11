@@ -462,13 +462,23 @@ export async function sync(db: Database): Promise<void> {
     // TODO empty response means no conflict
     // TODO but what if client synced without pushing anything?
 
-    const tx = db.transaction(db.objectStoreNames, "readwrite");
+    const storeNames: StoreName[] = [
+        "acknowledged-reviews",
+        "unacknowledged-reviews",
+        "word-list",
+    ];
+    const tx = db.transaction(storeNames, "readwrite");
     const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
     const unacknowledgedReviews = tx.objectStore("unacknowledged-reviews");
+    const wordList = tx.objectStore("word-list");
     const reviews = resp.reviews || [];
     if (reviews.length === 0) {
         // ACK un-ACK'ed reviews if there are no conflicts.
-        acknowledgeReviews(acknowledgedReviews, unacknowledgedReviews);
+        acknowledgeReviews(
+            acknowledgedReviews,
+            unacknowledgedReviews,
+            wordList,
+        );
         return await tx.done;
     }
 
@@ -485,6 +495,7 @@ export async function sync(db: Database): Promise<void> {
     for (const review of reviews) {
         const reviewed = new Date(review.reviewed);
         const { interval, sequenceNumber } = review;
+        // TODO mark word as seen
         acknowledgedReviews.put({
             word: review.word,
             learned: new Date(review.learned),
@@ -539,11 +550,19 @@ async function replaceIntervalStats(
 async function acknowledgeReviews(
     acknowledgedReviews: Store<"acknowledged-reviews", ReadWrite>,
     unacknowledgedReviews: Store<"unacknowledged-reviews", ReadWrite>,
+    wordList: Store<"word-list", ReadWrite>,
 ) {
+    const promises = [];
     let cursor = await unacknowledgedReviews.openCursor();
     while (cursor) {
+        const value = await wordList.get(cursor.value.word);
+        if (value != null) {
+            value.seen = 1;
+            promises.push(wordList.put(value));
+        }
         acknowledgedReviews.put(cursor.value);
         cursor = await cursor.continue();
     }
     await unacknowledgedReviews.clear();
+    await Promise.all(promises);
 }
