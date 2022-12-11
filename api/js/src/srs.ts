@@ -31,16 +31,17 @@ function upgrade(db: Database, oldVersion: number) {
             keyPath: "name",
         });
 
-        db.createObjectStore("seen-words", {
+        const wordList = db.createObjectStore("word-list", {
             keyPath: "word",
         });
-
-        const unseenWords = db.createObjectStore("unseen-words", {
-            keyPath: "word",
-        });
-        unseenWords.createIndex("frequency-class", "frequencyClass", {
-            unique: false,
-        });
+        wordList.createIndex(
+            "seen,frequency-class",
+            ["seen", "frequencyClass"],
+            {
+                multiEntry: false,
+                unique: false,
+            },
+        );
 
         const unacknowledgedReviews = db.createObjectStore("unacknowledged-reviews", {
             keyPath: "word",
@@ -97,7 +98,7 @@ export async function schedule(
     const storeNames: StoreName[] = [
         "acknowledged-reviews",
         "difficulty-stats",
-        "unseen-words",
+        "word-list",
     ];
     const tx = db.transaction(storeNames, "readonly");
     const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
@@ -118,15 +119,17 @@ export async function schedule(
         return reviews;
     }
 
+    // FIXME schedule keeps returning the same set of words, because
+    // word-list never gets updated.
     const difficultyStats = tx.objectStore("difficulty-stats");
-    const unseenWords = tx.objectStore("unseen-words");
-    const level = await placement(difficultyStats, unseenWords);
-    reviews.push(...await hardWords(unseenWords, level, limit - reviews.length));
+    const wordList = tx.objectStore("word-list");
+    const level = await placement(difficultyStats, wordList);
+    reviews.push(...await hardWords(wordList, level, limit - reviews.length));
 
     if (reviews.length >= limit) {
         return reviews;
     }
-    reviews.push(...await easyWords(unseenWords, level, limit - reviews.length));
+    reviews.push(...await easyWords(wordList, level, limit - reviews.length));
     return reviews;
 }
 

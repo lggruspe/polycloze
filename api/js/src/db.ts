@@ -30,6 +30,7 @@ export type IntervalStatsValue = {
 
 type Word = {
     word: string;   // key
+    seen: number;   // number, because boolean can't be used in indexes
     frequencyClass: number;
 };
 
@@ -42,15 +43,12 @@ export interface Schema extends DBSchema {
         };
     }
 
-    "seen-words": {
+    "word-list": {
         key: string;
         value: Word;
-    }
-
-    "unseen-words": {
-        key: string;
-        value: Word;
-        indexes: { "frequency-class": number };
+        indexes: { "seen,frequency-class": [number, number] };
+        // number instead of boolean, because boolean is not allowed in
+        // indexedDB keys.
     }
 
     "sequence-numbers": {
@@ -90,6 +88,6 @@ export type ReadOnly = "readonly" | "readwrite";
 export type ReadWrite = "readwrite";
 export type TransactionMode = ReadOnly | ReadWrite;
 
-export type StoreName = "data-version" | "seen-words" | "unseen-words" | "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
+export type StoreName = "data-version" | "word-list" | "sequence-numbers" | "unacknowledged-reviews" | "acknowledged-reviews" | "difficulty-stats" | "interval-stats";
 
 export type Store<T extends StoreName, U extends TransactionMode> = IDBPObjectStore<Schema, StoreName[], T, U>;

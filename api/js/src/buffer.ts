@@ -2,7 +2,7 @@
 
 import { PartWithAnswers, hasAnswers } from "./blank";
 import { experimentalFetchItems } from "./api";
-import { Database } from "./db";
+import { Database, StoreName } from "./db";
 import { Item } from "./item";
 import { getL1, getL2 } from "./language";
 import { Sentence } from "./sentence";
@@ -100,11 +100,13 @@ export class ItemBuffer {
     // Removes stale flashcards if placement level changed.
     async clearStale() {
         // Compute placement level.
+        const storeNames: StoreName[] = ["difficulty-stats", "word-list"];
+
         const db = await this.dbPromise;
-        const tx = db.transaction(db.objectStoreNames, "readonly");
+        const tx = db.transaction(storeNames, "readonly");
         const difficultyStats = tx.objectStore("difficulty-stats");
-        const unseenWords = tx.objectStore("unseen-words");
-        const level = await placement(difficultyStats, unseenWords);
+        const wordList = tx.objectStore("word-list");
+        const level = await placement(difficultyStats, wordList);
 
         if (this.frequencyClass != undefined && this.frequencyClass != level) {
             // Leaves some items in the buffer so flashcards come continuously.

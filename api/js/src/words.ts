@@ -5,10 +5,11 @@ import { isTooEasy, isTooHard } from "./wilson";
 
 // Returns smallest frequency class among unseen words.
 async function easiestUnseen(
-    store: Store<"unseen-words", ReadOnly>,
+    store: Store<"word-list", ReadOnly>,
 ): Promise<number> {
-    const index = store.index("frequency-class");
-    const cursor = await index.openCursor(undefined, "nextunique");
+    const range = IDBKeyRange.upperBound([1, 0], true);
+    const index = store.index("seen,frequency-class");
+    const cursor = await index.openCursor(range, "next");
     if (cursor) {
         return cursor.value.frequencyClass;
     }
@@ -18,9 +19,9 @@ async function easiestUnseen(
 // Determines appropriate frequency class for student.
 export async function placement(
     difficultyStats: Store<"difficulty-stats", ReadOnly>,
-    unseenWords: Store<"unseen-words", ReadOnly>,
+    wordList: Store<"word-list", ReadOnly>,
 ): Promise<number> {
-    let level = await easiestUnseen(unseenWords);
+    let level = await easiestUnseen(wordList);
     let lastCorrect = 0;
     let lastIncorrect = 0;
 
@@ -47,16 +48,21 @@ export async function placement(
     return level;
 }
 
-// Returns words that are >= preferred difficulty.
+// Returns unseen words that are >= preferred difficulty.
 // `limit`: max number of words to return.
 export async function hardWords(
-    store: Store<"unseen-words", ReadOnly>,
+    store: Store<"word-list", ReadOnly>,
     difficulty: number,
     limit: number,
 ): Promise<string[]> {
-    const range = IDBKeyRange.lowerBound(difficulty);
+    const range = IDBKeyRange.bound(
+        [0, difficulty],
+        [1, 0],
+        false,
+        true,
+    );
 
-    const index = store.index("frequency-class");
+    const index = store.index("seen,frequency-class");
     let cursor = await index.openCursor(range, "next");
 
     const words = [];
@@ -67,16 +73,16 @@ export async function hardWords(
     return words;
 }
 
-// Returns words that are < preferred difficulty.
+// Returns unseen words that are < preferred difficulty.
 // `limit`: max number of words to return.
 export async function easyWords(
-    store: Store<"unseen-words", ReadOnly>,
+    store: Store<"word-list", ReadOnly>,
     difficulty: number,
     limit: number,
 ): Promise<string[]> {
-    const range = IDBKeyRange.upperBound(difficulty, true);
+    const range = IDBKeyRange.upperBound([0, difficulty], true);
 
-    const index = store.index("frequency-class");
+    const index = store.index("seen,frequency-class");
     let cursor = await index.openCursor(range, "prev");
 
     const words = [];

@@ -267,27 +267,25 @@ export async function fetchWordList(db: Database): Promise<void> {
     const storeNames: StoreName[] = [
         "data-version",
         "acknowledged-reviews",
-        "seen-words",
-        "unseen-words",
+        "word-list",
     ];
     const tx = db.transaction(storeNames, "readwrite");
     const dataVersion = tx.objectStore("data-version");
     const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
-    const seenWords = tx.objectStore("seen-words");
-    const unseenWords = tx.objectStore("unseen-words");
+    const wordList = tx.objectStore("word-list");
 
     // Clear word stores first.
-    await Promise.all([seenWords.clear(), unseenWords.clear()]);
+    await wordList.clear();
 
     const promises = [];
     // TODO is `acknowledgedReviews` up-to-date at this point?
     const seen = new Set(await acknowledgedReviews.getAllKeys());
     for (const [word, frequencyClass] of records) {
-        if (seen.has(word)) {
-            promises.push(seenWords.add({ word, frequencyClass }));
-        } else {
-            promises.push(unseenWords.add({ word, frequencyClass }));
-        }
+        promises.push(wordList.add({
+            word,
+            frequencyClass,
+            seen: Number(seen.has(word)),
+        }));
     }
     await Promise.all(promises);
 
