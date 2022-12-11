@@ -490,12 +490,19 @@ export async function sync(db: Database): Promise<void> {
     console.assert(intervalStatsJSON.length > 0);
 
     // Acknowledge new reviews from the server.
+    const promises = [];
     const hour = 1000 * 60 * 60;
     let latest = 0;
     for (const review of reviews) {
         const reviewed = new Date(review.reviewed);
         const { interval, sequenceNumber } = review;
-        // TODO mark word as seen
+        // TODO won't this be slow when pulling a large number of reviews?
+        // E.g. when user uses a new device?
+        const value = await wordList.get(review.word);
+        if (value != null) {
+            value.seen = 1;
+            promises.push(wordList.put(value));
+        }
         acknowledgedReviews.put({
             word: review.word,
             learned: new Date(review.learned),
@@ -509,6 +516,7 @@ export async function sync(db: Database): Promise<void> {
             latest = sequenceNumber;
         }
     }
+    await Promise.all(promises);
 
     const sequenceNumbers = tx.objectStore("sequence-numbers");
     const difficultyStats = tx.objectStore("difficulty-stats");
