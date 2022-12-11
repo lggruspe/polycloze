@@ -4,8 +4,8 @@
   "description": "polycloze front-end",
   "main": "dist/index.js",
   "scripts": {
-    "build": "esbuild --bundle src/index.ts --bundle src/serviceworker.ts --outdir=dist --minify --sourcemap '--external:./public/*' --target=es2018",
-    "build:watch": "esbuild --bundle src/index.ts --bundle src/serviceworker.ts --outdir=dist --minify --sourcemap --watch '--external:./public/*' --target=es2018",
+    "build": "esbuild --bundle src/index.ts --bundle src/serviceworker.ts --outdir=dist --minify --sourcemap '--external:./public/*'",
+    "build:watch": "esbuild --bundle src/index.ts --bundle src/serviceworker.ts --outdir=dist --minify --sourcemap --watch '--external:./public/*'",
     "check": "npm run lint:fix && tsc",
     "lint": "eslint src/*.ts",
     "lint:fix": "eslint src/*.ts --fix",

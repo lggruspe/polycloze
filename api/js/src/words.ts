@@ -49,36 +49,40 @@ export async function placement(
 
 // Returns words that are >= preferred difficulty.
 // `limit`: max number of words to return.
-export async function * hardWords(
+export async function hardWords(
     store: Store<"unseen-words", ReadOnly>,
     difficulty: number,
     limit: number,
-): AsyncGenerator<string> {
+): Promise<string[]> {
     const range = IDBKeyRange.lowerBound(difficulty);
 
     const index = store.index("frequency-class");
     let cursor = await index.openCursor(range, "next");
 
+    const words = [];
     while (limit-- > 0 && cursor) {
-        yield cursor.value.word;
+        words.push(cursor.value.word);
         cursor = await cursor.continue();
     }
+    return words;
 }
 
 // Returns words that are < preferred difficulty.
 // `limit`: max number of words to return.
-export async function * easyWords(
+export async function easyWords(
     store: Store<"unseen-words", ReadOnly>,
     difficulty: number,
     limit: number,
-): AsyncGenerator<string> {
+): Promise<string[]> {
     const range = IDBKeyRange.upperBound(difficulty, true);
 
     const index = store.index("frequency-class");
     let cursor = await index.openCursor(range, "prev");
 
+    const words = [];
     while (limit-- > 0 && cursor) {
-        yield cursor.value.word;
+        words.push(cursor.value.word);
         cursor = await cursor.continue();
     }
+    return words;
 }

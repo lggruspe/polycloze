@@ -121,16 +121,12 @@ export async function schedule(
     const difficultyStats = tx.objectStore("difficulty-stats");
     const unseenWords = tx.objectStore("unseen-words");
     const level = await placement(difficultyStats, unseenWords);
-    for await (const word of hardWords(unseenWords, level, limit - reviews.length)) {
-        reviews.push(word);
-    }
+    reviews.push(...await hardWords(unseenWords, level, limit - reviews.length));
 
     if (reviews.length >= limit) {
         return reviews;
     }
-    for await (const word of easyWords(unseenWords, level, limit - reviews.length)) {
-        reviews.push(word);
-    }
+    reviews.push(...await easyWords(unseenWords, level, limit - reviews.length));
     return reviews;
 }
 
@@ -456,6 +452,8 @@ export async function sync(db: Database): Promise<void> {
 
     // Push unpushed changes.
     const resp = await syncReviews(await prepareUnpushedData(db));
+    // TODO empty response means no conflict
+    // TODO but what if client synced without pushing anything?
 
     const tx = db.transaction(db.objectStoreNames, "readwrite");
     const acknowledgedReviews = tx.objectStore("acknowledged-reviews");
