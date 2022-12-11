@@ -32,8 +32,10 @@ function upgrade(db: Database, oldVersion: number) {
         });
 
         const wordList = db.createObjectStore("word-list", {
-            keyPath: "word",
+            keyPath: "id",
+            autoIncrement: true,
         });
+        wordList.createIndex("word", "word", { unique: true });
         wordList.createIndex(
             "seen,frequency-class",
             ["seen", "frequencyClass"],
@@ -572,7 +574,8 @@ async function markAsSeen(
     store: Store<"word-list", ReadWrite>,
     word: string,
 ): Promise<void> {
-    const value = await store.get(word);
+    const index = store.index("word");
+    const value = await index.get(word);
     if (value != null) {
         value.seen = 1;
         await store.put(value);

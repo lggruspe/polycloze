@@ -29,7 +29,8 @@ export type IntervalStatsValue = {
 };
 
 type Word = {
-    word: string;   // key
+    id?: number;    // auto-increment key
+    word: string;
     seen: number;   // number, because boolean can't be used in indexes
     frequencyClass: number;
 };
@@ -44,11 +45,14 @@ export interface Schema extends DBSchema {
     }
 
     "word-list": {
-        key: string;
+        key: number;
         value: Word;
-        indexes: { "seen,frequency-class": [number, number] };
-        // number instead of boolean, because boolean is not allowed in
-        // indexedDB keys.
+        indexes: {
+            "word": string,
+            "seen,frequency-class": [number, number],
+            // number instead of boolean, because boolean is not allowed in
+            // indexedDB keys.
+        };
     }
 
     "sequence-numbers": {
