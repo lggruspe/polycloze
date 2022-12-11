@@ -1,6 +1,6 @@
 // Wrappers for api calls.
 
-import { streamCSV } from "./csv";
+import { parseCSV } from "./csv";
 import { Database, StoreName } from "./db";
 import { Item } from "./item";
 import { getL1, getL2 } from "./language";
@@ -247,21 +247,14 @@ export async function fetchWordList(db: Database): Promise<void> {
     // Get all words from the CSV. This should probably be okay, because the
     // largest CSV file is only ~2MB big.
     // The idb transaction closes when you do it inside the transaction.
-    const body = response.body;
-    if (body == null) {
-        return;
-    }
-
-    // TODO Will it parse faster if done by service workers?
     const records: [string, number][] = [];
-    const reader = body.getReader();
-    for await (const record of streamCSV(reader)) {
-        if (record.length !== 2) {
+    for (const row of parseCSV(await response.text())) {
+        if (row.length !== 2) {
             // Invalid record.
             continue;
         }
-        const word = record[0];
-        const frequencyClass = Number(record[1]);
+        const word = row[0];
+        const frequencyClass = Number(row[1]);
         if (isNaN(frequencyClass)) {
             // Invalid record.
             continue;
