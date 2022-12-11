@@ -277,13 +277,17 @@ export async function fetchWordList(db: Database): Promise<void> {
     // Clear word stores first.
     await Promise.all([seenWords.clear(), unseenWords.clear()]);
 
+    const promises = [];
+    // TODO is `acknowledgedReviews` up-to-date at this point?
+    const seen = new Set(await acknowledgedReviews.getAllKeys());
     for (const [word, frequencyClass] of records) {
-        if (await acknowledgedReviews.get(word) != null) {
-            await seenWords.put({ word, frequencyClass });
+        if (seen.has(word)) {
+            promises.push(seenWords.add({ word, frequencyClass }));
         } else {
-            await unseenWords.put({ word, frequencyClass });
+            promises.push(unseenWords.add({ word, frequencyClass }));
         }
     }
+    await Promise.all(promises);
 
     // Update etag value stored in db.
     await dataVersion.put({ name: "etag", etag });
