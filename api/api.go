@@ -156,5 +156,8 @@ func Router(config Config, db *sql.DB) (chi.Router, error) {
 	r.HandleFunc("/api/actions/set-course", handleSetCourse)
 	r.HandleFunc("/api/settings/upload/{l1}/{l2}", handleUpload)
 	r.HandleFunc("/api/settings/reset/{l1}/{l2}", handleResetProgress)
+
+	r.HandleFunc("/api/wordlist/{l1}/{l2}", handleWordLists)
+	r.HandleFunc("/api/wordlist/{l1}/{l2}/{id}", handleWordListWords)
 	return r, nil
 }

@@ -38,3 +38,17 @@ type SetCourseRequest struct {
 type SetCourseResponse struct {
 	Ok bool `json:"ok"`
 }
+
+type CreateWordListRequest struct {
+	Name string `json:"name"`
+}
+
+type CreateWordListResponse struct {
+	WordLists []WordList `json:"wordLists"`
+}
+
+type UpdateWordListRequest struct {
+	Rename string `json:"rename"`
+	Add    string `json:"add"`
+	Delete string `json:"delete"`
+}
